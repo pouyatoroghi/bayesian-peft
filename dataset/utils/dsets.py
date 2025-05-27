@@ -146,7 +146,9 @@ class ClassificationDataset:
 
     def _tokenize_prompts(self, prompts):
         print(2, 100 * "***", f"!{self.tokenizer.padding_side}!")
+        print(f"{self.tokenizer.pad_token},{self.tokenizer.bos_token},{self.tokenizer.eos_token}!")
         self.tokenizer.pad_token = self.tokenizer.bos_token if self.tokenizer.padding_side == "left" else self.tokenizer.eos_token
+        print(f"{self.tokenizer.pad_token},{self.tokenizer.bos_token},{self.tokenizer.eos_token}!")
         prompts = self.tokenizer(
             prompts,
             padding=True,
