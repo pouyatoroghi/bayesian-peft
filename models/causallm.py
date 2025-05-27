@@ -39,8 +39,8 @@ class CausalLM(nn.Module):
         print(target_modules)
 
         # Method 2: Print the model's architecture
-        print("\nLORA Model architecture:")
-        print(self.model)
+        print("\nModel architecture:")
+        print(model)
 
         peft_config = LoraConfig(
             task_type="CAUSAL_LM",
@@ -54,5 +54,5 @@ class CausalLM(nn.Module):
         self.peft_config = peft_config
 
         # Method 2: Print the model's architecture
-        print("\nModel architecture:")
+        print("\nLORA Model architecture:")
         print(self.model)
