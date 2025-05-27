@@ -36,6 +36,10 @@ class S2SDataset_Classification(DatasetBase):
         self.tokenizer = AutoTokenizer.from_pretrained(
             args.model, trust_remote_code=True
         )
+
+        self.tokenizer.bos_token = "<|im_start|>"       ###change!
+        self.tokenizer.eos_token = "<|im_end|>"         ###change!
+        
         self.tokenizer.padding_side = "left"
         if args.dataset in ["boolq", "winogrande_m", "winogrande_s"]:
             self.tokenizer.add_eos_token = True
