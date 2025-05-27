@@ -145,10 +145,6 @@ class ClassificationDataset:
             return self.clm_loader(dset, *args, **kwargs)
 
     def _tokenize_prompts(self, prompts):
-        print(2, 100 * "***", f"!{self.tokenizer.padding_side}!")
-        print(f"{self.tokenizer.pad_token},{self.tokenizer.bos_token},{self.tokenizer.eos_token}!")
-        self.tokenizer.pad_token = self.tokenizer.bos_token if self.tokenizer.padding_side == "left" else self.tokenizer.eos_token
-        print(f"{self.tokenizer.pad_token},{self.tokenizer.bos_token},{self.tokenizer.eos_token}!")
         prompts = self.tokenizer(
             prompts,
             padding=True,
@@ -156,7 +152,6 @@ class ClassificationDataset:
             return_tensors="pt",
             max_length=self.max_seq_len,
         )
-        print(3, 100 * "***")
         return prompts
 
 
