@@ -439,7 +439,7 @@ Answer:"""
 
     def clm_collate_fn(self, batch):
         prompts = self._format_prompts(batch)
-        print(1, 100 * "***", f"!{self.tokenizer.pad_token}!")
+        print(1, 100 * "***", f"!{self.tokenizer.padding_side}!")
         prompts = self._tokenize_prompts(prompts)
         print(2, 100 * "***")
         classes = t.tensor([int(e["answer"]) - 1 for e in batch])
