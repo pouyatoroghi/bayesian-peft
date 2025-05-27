@@ -73,6 +73,9 @@ class S2ClassDataset(DatasetBase):
             args.model, use_fast=not args.use_slow_tokenizer, trust_remote_code=True
         )
 
+        self.tokenizer.bos_token = "<|im_start|>"       ###change!
+        self.tokenizer.eos_token = "<|im_end|>"         ###change!
+
         self.num_labels = self.task_info[args.dataset]["num_labels"]
         self.tokenize_keys = self.task_info[args.dataset]["tokenize_keys"]
 
