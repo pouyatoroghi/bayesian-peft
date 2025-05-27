@@ -145,6 +145,8 @@ class ClassificationDataset:
             return self.clm_loader(dset, *args, **kwargs)
 
     def _tokenize_prompts(self, prompts):
+        print(2, 100 * "***", f"!{self.tokenizer.padding_side}!")
+        self.tokenizer.pad_token = self.tokenizer.bos_token if self.tokenizer.padding_side == "left" else self.tokenizer.eos_token
         prompts = self.tokenizer(
             prompts,
             padding=True,
@@ -152,6 +154,7 @@ class ClassificationDataset:
             return_tensors="pt",
             max_length=self.max_seq_len,
         )
+        print(3, 100 * "***")
         return prompts
 
 
@@ -439,10 +442,7 @@ Answer:"""
 
     def clm_collate_fn(self, batch):
         prompts = self._format_prompts(batch)
-        print(1, 100 * "***", f"!{self.tokenizer.padding_side}!")
-        self.tokenizer.pad_token = self.tokenizer.bos_token if self.tokenizer.padding_side == "left" else self.tokenizer.eos_token
         prompts = self._tokenize_prompts(prompts)
-        print(2, 100 * "***")
         classes = t.tensor([int(e["answer"]) - 1 for e in batch])
         targets = t.cat([self.label2target[c.item()] for c in classes])
         return prompts, classes, targets
