@@ -22,6 +22,10 @@ class S2SDataset(DatasetBase):
             self.tokenizer = AutoTokenizer.from_pretrained(
                 args.model, trust_remote_code=True, padding_side="right"
             )
+
+        self.tokenizer.bos_token = "<|im_start|>"       ###change!
+        self.tokenizer.eos_token = "<|im_end|>"         ###change!
+        
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
         dset_class: dsets.ClassificationDataset = getattr(dsets, args.dataset)
