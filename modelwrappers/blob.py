@@ -442,107 +442,210 @@ class BLoB(WrapperBase):
                     res.append(self.base_model(**batch).logits)
                 return torch.stack(res, dim=1)
 
+    # def fit(self, train_loader, eval_loader):
+    #     nll_losses = AverageMeter()
+    #     kl_losses = AverageMeter()
+    #     elbo_losses = AverageMeter()
+    #     accs = AverageMeter()
+    #     samples_seen = 0
+    #     with tqdm(
+    #         total=len(train_loader),
+    #         desc=f"Epoch {self.args.epoch+1}/{self.args.n_epochs}",
+    #         leave=False,
+    #     ) as pbar:
+    #         for i, batch in enumerate(train_loader):
+    #             if self.args.dataset_type == "mcdataset":
+    #                 _, golds, _ = batch
+    #             elif self.args.dataset_type == "bertds":
+    #                 golds = batch["labels"]
+    #             else:
+    #                 raise NotImplementedError(
+    #                     f"Dataset type {self.args.dataset_type} not implemented."
+    #                 )
+    #             logits = self.forward_logits(
+    #                 batch, sample=True, n_samples=self.train_n_samples
+    #             ).mean(1)
+    #             output = torch.log_softmax(logits, dim=1)
+    #             nll = self.loss(output, golds, reduction="mean")
+
+    #             self.accelerator.backward(nll)
+    #             self.opt.step()
+    #             self.opt.zero_grad()
+    #             self.scheduler.step()
+
+    #             kl_divs = []
+    #             for _ in range(self.train_n_samples):
+    #                 if hasattr(self.base_model, "module"):
+    #                     kl_divs.append(self.div_posterior_prior(self.base_model.module))
+    #                 else:
+    #                     kl_divs.append(self.div_posterior_prior(self.base_model))
+    #             kl = torch.mean(torch.stack(kl_divs), dim=0)
+
+    #             if self.klreweighting:
+    #                 if self.i % self.M == 0:
+    #                     i = self.M
+    #                 else:
+    #                     i = self.i % self.M
+    #                 self.pi = 2**i / (2 ** (self.M + 1) - 1)
+    #                 self.i += 1
+    #             else:
+    #                 self.pi = 1 / self.M
+    #             kl_div = kl * self.pi
+    #             self.accelerator.backward(kl_div)
+    #             self.opt2.step()
+    #             self.opt2.zero_grad()
+    #             self.scheduler2.step()
+
+    #             acc = accuracy_topk(output.data, golds)
+
+    #             loss, acc, nll_loss, kl = (
+    #                 (kl + nll).detach().cpu().numpy(),
+    #                 acc.item(),
+    #                 nll.detach().cpu().numpy(),
+    #                 kl_div.detach().cpu().numpy(),
+    #             )
+
+    #             if self.args.dataset_type == "mcdataset":
+    #                 _, classes, _ = batch
+    #                 references = self.accelerator.gather(classes)
+    #             else:
+    #                 references = self.accelerator.gather(batch["labels"])
+    #             if self.accelerator.num_processes > 1:
+    #                 if i == len(train_loader) - 1:
+    #                     references = references[
+    #                         : len(train_loader.dataset) - samples_seen
+    #                     ]
+    #                 else:
+    #                     samples_seen += references.shape[0]
+    #             len_batch = references.shape[0]
+    #             kl_losses.update(kl, len_batch)
+    #             nll_losses.update(nll_loss, len_batch)
+    #             elbo_losses.update(loss, len_batch)
+    #             accs.update(acc, len_batch)
+
+    #             assert not math.isnan(nll_loss)
+    #             assert not math.isnan(kl)
+    #             if self.accelerator.is_local_main_process:
+    #                 if self.wandb_logger is not None:
+    #                     self.wandb_logger.log(
+    #                         {
+    #                             "train_acc": accs.avg,
+    #                             "train_nll_loss": nll_losses.avg,
+    #                             "kl_loss": kl_losses.avg,
+    #                             "elbo_loss": elbo_losses.avg,
+    #                             "lr": self.opt.param_groups[0]["lr"],
+    #                             "pi": self.pi,
+    #                         }
+    #                     )
+
+    #             self.step += self.accelerator.num_processes
+    #             pbar.update(1)
+    #             if self.step >= self.args.eval_per_steps:
+    #                 self.step -= self.args.eval_per_steps
+    #                 self.evaluate(eval_loader)
+
     def fit(self, train_loader, eval_loader):
         nll_losses = AverageMeter()
         kl_losses = AverageMeter()
         elbo_losses = AverageMeter()
         accs = AverageMeter()
         samples_seen = 0
-        with tqdm(
+        pbar = tqdm(
             total=len(train_loader),
             desc=f"Epoch {self.args.epoch+1}/{self.args.n_epochs}",
             leave=False,
-        ) as pbar:
-            for i, batch in enumerate(train_loader):
-                if self.args.dataset_type == "mcdataset":
-                    _, golds, _ = batch
-                elif self.args.dataset_type == "bertds":
-                    golds = batch["labels"]
-                else:
-                    raise NotImplementedError(
-                        f"Dataset type {self.args.dataset_type} not implemented."
-                    )
-                logits = self.forward_logits(
-                    batch, sample=True, n_samples=self.train_n_samples
-                ).mean(1)
-                output = torch.log_softmax(logits, dim=1)
-                nll = self.loss(output, golds, reduction="mean")
-
-                self.accelerator.backward(nll)
-                self.opt.step()
-                self.opt.zero_grad()
-                self.scheduler.step()
-
-                kl_divs = []
-                for _ in range(self.train_n_samples):
-                    if hasattr(self.base_model, "module"):
-                        kl_divs.append(self.div_posterior_prior(self.base_model.module))
-                    else:
-                        kl_divs.append(self.div_posterior_prior(self.base_model))
-                kl = torch.mean(torch.stack(kl_divs), dim=0)
-
-                if self.klreweighting:
-                    if self.i % self.M == 0:
-                        i = self.M
-                    else:
-                        i = self.i % self.M
-                    self.pi = 2**i / (2 ** (self.M + 1) - 1)
-                    self.i += 1
-                else:
-                    self.pi = 1 / self.M
-                kl_div = kl * self.pi
-                self.accelerator.backward(kl_div)
-                self.opt2.step()
-                self.opt2.zero_grad()
-                self.scheduler2.step()
-
-                acc = accuracy_topk(output.data, golds)
-
-                loss, acc, nll_loss, kl = (
-                    (kl + nll).detach().cpu().numpy(),
-                    acc.item(),
-                    nll.detach().cpu().numpy(),
-                    kl_div.detach().cpu().numpy(),
+        )
+        for i, batch in enumerate(train_loader):
+            if self.args.dataset_type == "mcdataset":
+                _, golds, _ = batch
+            elif self.args.dataset_type == "bertds":
+                golds = batch["labels"]
+            else:
+                raise NotImplementedError(
+                    f"Dataset type {self.args.dataset_type} not implemented."
                 )
+            logits = self.forward_logits(
+                batch, sample=True, n_samples=self.train_n_samples
+            ).mean(1)
+            output = torch.log_softmax(logits, dim=1)
+            nll = self.loss(output, golds, reduction="mean")
 
-                if self.args.dataset_type == "mcdataset":
-                    _, classes, _ = batch
-                    references = self.accelerator.gather(classes)
+            self.accelerator.backward(nll)
+            self.opt.step()
+            self.opt.zero_grad()
+            self.scheduler.step()
+
+            kl_divs = []
+            for _ in range(self.train_n_samples):
+                if hasattr(self.base_model, "module"):
+                    kl_divs.append(self.div_posterior_prior(self.base_model.module))
                 else:
-                    references = self.accelerator.gather(batch["labels"])
-                if self.accelerator.num_processes > 1:
-                    if i == len(train_loader) - 1:
-                        references = references[
-                            : len(train_loader.dataset) - samples_seen
-                        ]
-                    else:
-                        samples_seen += references.shape[0]
-                len_batch = references.shape[0]
-                kl_losses.update(kl, len_batch)
-                nll_losses.update(nll_loss, len_batch)
-                elbo_losses.update(loss, len_batch)
-                accs.update(acc, len_batch)
+                    kl_divs.append(self.div_posterior_prior(self.base_model))
+            kl = torch.mean(torch.stack(kl_divs), dim=0)
 
-                assert not math.isnan(nll_loss)
-                assert not math.isnan(kl)
-                if self.accelerator.is_local_main_process:
-                    if self.wandb_logger is not None:
-                        self.wandb_logger.log(
-                            {
-                                "train_acc": accs.avg,
-                                "train_nll_loss": nll_losses.avg,
-                                "kl_loss": kl_losses.avg,
-                                "elbo_loss": elbo_losses.avg,
-                                "lr": self.opt.param_groups[0]["lr"],
-                                "pi": self.pi,
-                            }
-                        )
+            if self.klreweighting:
+                if self.i % self.M == 0:
+                    i = self.M
+                else:
+                    i = self.i % self.M
+                self.pi = 2**i / (2 ** (self.M + 1) - 1)
+                self.i += 1
+            else:
+                self.pi = 1 / self.M
+            kl_div = kl * self.pi
+            self.accelerator.backward(kl_div)
+            self.opt2.step()
+            self.opt2.zero_grad()
+            self.scheduler2.step()
 
-                self.step += self.accelerator.num_processes
-                pbar.update(1)
-                if self.step >= self.args.eval_per_steps:
-                    self.step -= self.args.eval_per_steps
-                    self.evaluate(eval_loader)
+            acc = accuracy_topk(output.data, golds)
+
+            loss, acc, nll_loss, kl = (
+                (kl + nll).detach().cpu().numpy(),
+                acc.item(),
+                nll.detach().cpu().numpy(),
+                kl_div.detach().cpu().numpy(),
+            )
+
+            if self.args.dataset_type == "mcdataset":
+                _, classes, _ = batch
+                references = self.accelerator.gather(classes)
+            else:
+                references = self.accelerator.gather(batch["labels"])
+            if self.accelerator.num_processes > 1:
+                if i == len(train_loader) - 1:
+                    references = references[
+                        : len(train_loader.dataset) - samples_seen
+                    ]
+                else:
+                    samples_seen += references.shape[0]
+            len_batch = references.shape[0]
+            kl_losses.update(kl, len_batch)
+            nll_losses.update(nll_loss, len_batch)
+            elbo_losses.update(loss, len_batch)
+            accs.update(acc, len_batch)
+
+            assert not math.isnan(nll_loss)
+            assert not math.isnan(kl)
+            if self.accelerator.is_local_main_process:
+                if self.wandb_logger is not None:
+                    self.wandb_logger.log(
+                        {
+                            "train_acc": accs.avg,
+                            "train_nll_loss": nll_losses.avg,
+                            "kl_loss": kl_losses.avg,
+                            "elbo_loss": elbo_losses.avg,
+                            "lr": self.opt.param_groups[0]["lr"],
+                            "pi": self.pi,
+                        }
+                    )
+
+            self.step += self.accelerator.num_processes
+            pbar.update(1)
+            if self.step >= self.args.eval_per_steps:
+                self.step -= self.args.eval_per_steps
+                self.evaluate(eval_loader)
+        pbar.close()
 
     def evaluate(self, eval_loader):
         print("self.eval_n_samples:", self.eval_n_samples)
