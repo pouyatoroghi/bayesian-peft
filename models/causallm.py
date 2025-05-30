@@ -23,11 +23,11 @@ class CausalLM(nn.Module):
         bnb_config = BitsAndBytesConfig(load_in_8bit=args.load_in_8bit)
         if args.load_model_path is not None:
             model = AutoModelForCausalLM.from_pretrained(
-                args.load_model_path, quantization_config=bnb_config
+                args.load_model_path#, quantization_config=bnb_config
             )
         else:
             model = AutoModelForCausalLM.from_pretrained(
-                args.model, quantization_config=bnb_config
+                args.model#, quantization_config=bnb_config
             )
         if args.apply_classhead_lora:
             target_modules = ["q_proj", "v_proj", "lm_head"]
