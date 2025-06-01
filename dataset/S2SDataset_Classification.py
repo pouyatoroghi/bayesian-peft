@@ -67,6 +67,16 @@ class S2SDataset_Classification(DatasetBase):
                 name=args.dataset,
                 max_seq_len=args.max_seq_len,
             )
+
+        elif args.dataset.startswith("MMLU Pro"):
+            dset_class: dsets.ClassificationDataset = getattr(dsets, "mmlu_pro")
+            self.dset = dset_class(
+                self.tokenizer,
+                add_space=args.add_space,
+                name=args.dataset[9:],
+                max_seq_len=args.max_seq_len,
+            )
+        
         elif args.dataset.startswith("MMLU"):
             dset_class: dsets.ClassificationDataset = getattr(dsets, "mmlu")
             self.dset = dset_class(
@@ -92,7 +102,7 @@ class S2SDataset_Classification(DatasetBase):
         """
 
         self.target_ids = self.dset.target_ids
-
+        
         if self.args.dataset.startswith("MMLU"):
             self.train_dataloader = self.dset.loader(
                 is_s2s=self.args.is_s2s,  # sequence to sequence model?
