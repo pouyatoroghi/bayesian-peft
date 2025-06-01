@@ -1050,7 +1050,7 @@ class MMLUProDataset(ClassificationDataset):
         self.names = names
 
         df = pd.DataFrame(dset["test"])
-        filtered_df = df[df["subject"].isin(names)]
+        filtered_df = df[df["category"].isin(names)]
         dset = datasets.Dataset.from_pandas(filtered_df)
 
         self.few_shot_preamble = """Consider these examples of question, answer pairs:
