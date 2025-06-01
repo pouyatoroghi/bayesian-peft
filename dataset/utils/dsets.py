@@ -1035,6 +1035,113 @@ Answer:"""
 
 mmlu = MMLUDataset
 
+# Change!
+class MMLUProDataset(ClassificationDataset):
+    def __init__(
+        self,
+        tokenizer: AutoTokenizer,
+        names: list = ["physics"],
+        add_space: bool = True,
+        few_shot: bool = False,
+        max_seq_len: int = 512,
+    ):
+
+        dset = load_dataset("TIGER-Lab/MMLU-Pro")
+        self.names = names
+
+        df = pd.DataFrame(dset["test"])
+        filtered_df = df[df["subject"].isin(names)]
+        dset = datasets.Dataset.from_pandas(filtered_df)
+
+        prompt = self.few_shot_preamble if few_shot else self.zero_shot_preamble
+        super().__init__(
+            dset,
+            tokenizer,
+            4,
+            prompt,
+            add_space,
+            numerical=False,
+            max_seq_len=max_seq_len,
+        )
+
+    few_shot_preamble = """Return the label of the correct answer for each question below.
+
+Adam put handwash only clothes in the washer but Aaron washed them by hand as _ was lazy.
+Choices:
+A) Adam
+B) Aaron
+Answer: A
+
+Steven proudly showed Michael the mangoes he grew himself all this summer. _ is astonished.
+Choices:
+A) Stephen
+B) Michael
+Answer: B
+
+{question}
+Choices:
+{choices}
+Answer:"""
+
+    zero_shot_preamble = """Return the label of the correct answer for the question below.
+
+Question: {question}
+Choices:
+{choices}
+Answer:"""
+
+    def _format_prompts(self, batch):
+        prompts = []
+        for e in batch:
+            # choices = "\n".join(e["choices"])
+            choices = "\n".join(
+                [f"{l}) {c}" for l, c, in zip(["A", "B", "C", "D"], e["choices"])]
+            )
+            prompts.append(
+                self.preamble.format(question=e["question"], choices=choices)
+            )
+        return prompts
+
+    def clm_collate_fn(self, batch):
+        prompts = self._format_prompts(batch)
+        prompts = self._tokenize_prompts(prompts)
+        classes = t.tensor([int(e["answer"]) for e in batch])
+        targets = t.cat([self.label2target[c.item()] for c in classes])
+        return prompts, classes, targets
+
+    def s2s_collate_fn(self, batch):
+        prompts = [e["question"] for e in batch]
+        prompts = self._tokenize_prompts(prompts)
+        targets = t.tensor([int(e["answer"]) for e in batch])
+        return prompts, targets, targets
+
+    def loader(
+        self,
+        *args,
+        is_s2s: bool = False,
+        split: str = "test",
+        subset_size: int = -1,
+        subset_seed: int = 42,
+        grad_acc_steps: int = 1,
+        drop_last: bool = True,
+        **kwargs,
+    ):
+        dset = self.dset
+        kwargs = {"batch_size": 32, "drop_last": drop_last} | kwargs
+        assert (
+            kwargs["batch_size"] % grad_acc_steps == 0
+        ), "batch size must be divisible by gradient accumulation steps"
+        kwargs["batch_size"] = kwargs["batch_size"] // grad_acc_steps
+
+        if is_s2s:
+            return self.s2s_loader(dset, *args, **kwargs)
+        else:
+            return self.clm_loader(dset, *args, **kwargs)
+            
+# Add to exports at the end of dsets.py
+mmlu_pro = MMLUProDataset
+
+
 
 class LMDataset:
     """
