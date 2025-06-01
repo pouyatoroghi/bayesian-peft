@@ -73,7 +73,7 @@ class S2SDataset_Classification(DatasetBase):
             self.dset = dset_class(
                 self.tokenizer,
                 add_space=args.add_space,
-                name=args.dataset[9:],
+                names=[args.dataset[9:]],
                 max_seq_len=args.max_seq_len,
             )
         
