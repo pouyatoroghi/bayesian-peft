@@ -580,6 +580,7 @@ class BLoB(WrapperBase):
 
                 print(f"Probs: {probs}")
                 print(f"Labels: {labels}")
+                print(metric_kwargs)
                 
                 acc_metric(probs, labels)
                 ece_metric(probs, labels)
