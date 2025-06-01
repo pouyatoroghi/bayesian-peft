@@ -46,6 +46,8 @@ class S2SDataset_Classification(DatasetBase):
         self.tokenizer.pad_token = self.tokenizer.bos_token
         if args.dataset in self.task_info:
             self.num_labels = self.task_info[args.dataset]["num_labels"]
+        elif args.dataset.startswith("MMLU Pro"):
+            self.num_labels = 10
         elif args.dataset.startswith("MMLU"):
             self.num_labels = 4
         else:
