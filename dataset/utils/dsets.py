@@ -1053,49 +1053,67 @@ class MMLUProDataset(ClassificationDataset):
         filtered_df = df[df["subject"].isin(names)]
         dset = datasets.Dataset.from_pandas(filtered_df)
 
-        prompt = self.few_shot_preamble if few_shot else self.zero_shot_preamble
-        super().__init__(
-            dset,
-            tokenizer,
-            4,
-            prompt,
-            add_space,
-            numerical=False,
-            max_seq_len=max_seq_len,
-        )
+        self.few_shot_preamble = """Consider these examples of question, answer pairs:
 
-    few_shot_preamble = """Return the label of the correct answer for each question below.
-
-Adam put handwash only clothes in the washer but Aaron washed them by hand as _ was lazy.
+Question: A refracting telescope consists of two converging lenses separated by 100 cm. The eye-piece lens has a focal length of 20 cm. The angular magnification of the telescope is
 Choices:
-A) Adam
-B) Aaron
-Answer: A
+A) 10
+B) 40
+C) 6
+D) 25
+E) 15
+F) 50
+G) 30
+H) 4
+I) 5
+J) 20
+Answer: H
 
-Steven proudly showed Michael the mangoes he grew himself all this summer. _ is astonished.
+Question: Colors in a soap bubble result from light
 Choices:
-A) Stephen
-B) Michael
-Answer: B
+A) dispersion
+B) deflection
+C) refraction
+D) reflection
+E) interference
+F) converted to a different frequency
+G) polarization
+H) absorption
+I) diffraction
+J) transmission
+Answer: E
 
-{question}
-Choices:
-{choices}
-Answer:"""
-
-    zero_shot_preamble = """Return the label of the correct answer for the question below.
+Now, return the label of the correct answer for the question below.
 
 Question: {question}
 Choices:
 {choices}
 Answer:"""
 
+        self.zero_shot_preamble = """Return the label of the correct answer for the question below.
+    
+Question: {question}
+Choices:
+{choices}
+Answer:"""
+
+        prompt = self.few_shot_preamble if few_shot else self.zero_shot_preamble
+        super().__init__(
+            dset,
+            tokenizer,
+            10,
+            prompt,
+            add_space,
+            numerical=False,
+            max_seq_len=max_seq_len,
+        )
+
     def _format_prompts(self, batch):
         prompts = []
         for e in batch:
             # choices = "\n".join(e["choices"])
             choices = "\n".join(
-                [f"{l}) {c}" for l, c, in zip(["A", "B", "C", "D"], e["choices"])]
+                [f"{l}) {c}" for l, c, in zip(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"], e["options"])]
             )
             prompts.append(
                 self.preamble.format(question=e["question"], choices=choices)
@@ -1105,14 +1123,14 @@ Answer:"""
     def clm_collate_fn(self, batch):
         prompts = self._format_prompts(batch)
         prompts = self._tokenize_prompts(prompts)
-        classes = t.tensor([int(e["answer"]) for e in batch])
+        classes = t.tensor([int(e["answer_index"]) for e in batch])
         targets = t.cat([self.label2target[c.item()] for c in classes])
         return prompts, classes, targets
 
     def s2s_collate_fn(self, batch):
         prompts = [e["question"] for e in batch]
         prompts = self._tokenize_prompts(prompts)
-        targets = t.tensor([int(e["answer"]) for e in batch])
+        targets = t.tensor([int(e["answer_index"]) for e in batch])
         return prompts, targets, targets
 
     def loader(
@@ -1137,11 +1155,8 @@ Answer:"""
             return self.s2s_loader(dset, *args, **kwargs)
         else:
             return self.clm_loader(dset, *args, **kwargs)
-            
-# Add to exports at the end of dsets.py
+
 mmlu_pro = MMLUProDataset
-
-
 
 class LMDataset:
     """
