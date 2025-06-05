@@ -420,6 +420,7 @@ class BLoB(WrapperBase):
             if not sample:
                 self.sample(self.base_model, False)
                 output = self.base_model(**inputs)
+                print(f"Logits shape: {output.logits.shape}")
                 logits = output.logits[:, -1, self.target_ids]
                 self.sample(self.base_model, True)
                 return logits.unsqueeze(1)
