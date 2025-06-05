@@ -592,7 +592,7 @@ class BLoB(WrapperBase):
 
                 # Decode to text
                 generated_text = self.base_model.tokenizer.decode(predicted_ids[0], skip_special_tokens=True)
-                print(f"Text :!{generated_text!}")
+                print(f"Text :!{generated_text}!")
                 
                 acc_metric(probs, labels)
                 ece_metric(probs, labels)
