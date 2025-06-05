@@ -589,9 +589,11 @@ class BLoB(WrapperBase):
                 print(f"Logits shape: {output.logits.shape}")
                 # Get predicted token IDs (greedy decoding)
                 predicted_ids = torch.argmax(logits, dim=-1)
+                model_name = "Qwen/Qwen2.5-0.5B-Instruct"  # Replace with your desired Qwen variant
+                ttokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
                 # Decode to text
-                generated_text = self.base_model.tokenizer.decode(predicted_ids[0], skip_special_tokens=True)
+                generated_text = ttokenizer.decode(predicted_ids[0], skip_special_tokens=True)
                 print(f"Text :!{generated_text}!")
                 
                 acc_metric(probs, labels)
