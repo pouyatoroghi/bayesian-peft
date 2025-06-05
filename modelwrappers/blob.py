@@ -586,7 +586,7 @@ class BLoB(WrapperBase):
                 inputs, _, _ = batch
                 self.sample(self.base_model, False)
                 output = self.base_model(**inputs)
-                print(f"Logits shape: {output.logits.shape}")
+                print(f"Logits shape: {output.logits.shape}, {self.target_ids}")
                 # Get predicted token IDs (greedy decoding)
                 predicted_ids = torch.argmax(logits, dim=-1)
                 model_name = "Qwen/Qwen2.5-0.5B-Instruct"  # Replace with your desired Qwen variant
