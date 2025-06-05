@@ -15,7 +15,7 @@ from transformers import PreTrainedModel
 from peft.config import PeftConfig
 from peft.tuners.lora import LoraLayer, Linear
 from peft.tuners.lora.bnb import Linear8bitLt
-
+from transformers import AutoTokenizer
 
 ## Model Specific Argument Parsing
 def get_parser() -> ArgumentParser:
