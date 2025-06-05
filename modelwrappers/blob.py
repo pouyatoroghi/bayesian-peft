@@ -420,7 +420,7 @@ class BLoB(WrapperBase):
             if not sample:
                 self.sample(self.base_model, False)
                 output = self.base_model(**inputs)
-                print(f"Logits shape: {output.logits.shape}")
+                # print(f"Logits shape: {output.logits.shape}")
                 logits = output.logits[:, -1, self.target_ids]
                 self.sample(self.base_model, True)
                 return logits.unsqueeze(1)
@@ -579,9 +579,12 @@ class BLoB(WrapperBase):
                 probs = torch.softmax(logits, dim=-1).mean(dim=1)
                 std = torch.softmax(logits, dim=-1).std(dim=1).mean()
 
-                print(f"Probs: {probs}, {probs.shape}")
-                print(f"Labels: {labels}, {labels.shape}")
+                # print(f"Probs: {probs}, {probs.shape}")
+                # print(f"Labels: {labels}, {labels.shape}")
                 # print(metric_kwargs)
+                self.sample(self.base_model, False)
+                output = self.base_model(**inputs)
+                print(f"Logits shape: {output.logits.shape}")
                 
                 acc_metric(probs, labels)
                 ece_metric(probs, labels)
