@@ -578,8 +578,8 @@ class BLoB(WrapperBase):
                 probs = torch.softmax(logits, dim=-1).mean(dim=1)
                 std = torch.softmax(logits, dim=-1).std(dim=1).mean()
 
-                # print(f"Probs: {probs}")
-                # print(f"Labels: {labels}")
+                print(f"Probs: {probs}, {probs.shape}")
+                print(f"Labels: {labels}, {labels.shape}")
                 # print(metric_kwargs)
                 
                 acc_metric(probs, labels)
