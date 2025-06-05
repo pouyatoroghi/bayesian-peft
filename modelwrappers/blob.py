@@ -582,9 +582,17 @@ class BLoB(WrapperBase):
                 # print(f"Probs: {probs}, {probs.shape}")
                 # print(f"Labels: {labels}, {labels.shape}")
                 # print(metric_kwargs)
+                idx, batch = next(enumerate(eval_loader))
+                inputs, _, _ = batch
                 self.sample(self.base_model, False)
                 output = self.base_model(**inputs)
                 print(f"Logits shape: {output.logits.shape}")
+                # Get predicted token IDs (greedy decoding)
+                predicted_ids = torch.argmax(logits, dim=-1)
+
+                # Decode to text
+                generated_text = self.base_model.tokenizer.decode(predicted_ids[0], skip_special_tokens=True)
+                print(f"Text :!{generated_text!}")
                 
                 acc_metric(probs, labels)
                 ece_metric(probs, labels)
