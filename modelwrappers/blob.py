@@ -582,19 +582,19 @@ class BLoB(WrapperBase):
                 # print(f"Probs: {probs}, {probs.shape}")
                 # print(f"Labels: {labels}, {labels.shape}")
                 # print(metric_kwargs)
-                idx, batch = next(enumerate(eval_loader))
-                inputs, _, _ = batch
-                self.sample(self.base_model, False)
-                output = self.base_model(**inputs)
-                print(f"Logits shape: {output.logits.shape}, {self.target_ids}")
-                # Get predicted token IDs (greedy decoding)
-                predicted_ids = torch.argmax(logits, dim=-1)
-                model_name = "Qwen/Qwen2.5-0.5B-Instruct"  # Replace with your desired Qwen variant
-                ttokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+                # idx, batch = next(enumerate(eval_loader))
+                # inputs, _, _ = batch
+                # self.sample(self.base_model, False)
+                # output = self.base_model(**inputs)
+                # print(f"Logits shape: {output.logits.shape}, {self.target_ids}")
+                # # Get predicted token IDs (greedy decoding)
+                # predicted_ids = torch.argmax(logits, dim=-1)
+                # model_name = "Qwen/Qwen2.5-0.5B-Instruct"  # Replace with your desired Qwen variant
+                # ttokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
-                # Decode to text
-                generated_text = ttokenizer.decode(predicted_ids[0], skip_special_tokens=True)
-                print(f"Text :!{generated_text}!")
+                # # Decode to text
+                # generated_text = ttokenizer.decode(predicted_ids[0], skip_special_tokens=True)
+                # print(f"Text :!{generated_text}!")
                 
                 acc_metric(probs, labels)
                 ece_metric(probs, labels)
