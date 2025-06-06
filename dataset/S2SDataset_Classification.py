@@ -104,8 +104,27 @@ class S2SDataset_Classification(DatasetBase):
         """
 
         self.target_ids = self.dset.target_ids
+
+        if self.args.dataset.startswith("MMLU Pro"):
+            self.train_dataloader = self.dset.loader(
+                is_s2s=self.args.is_s2s,  # sequence to sequence model?
+                batch_size=self.args.batch_size,  # training batch size
+                split="test",  # training split name in dset
+                subset_size=-1,  # train on subset? (-1 = no subset)
+            )
+            total_data_count = 0
+            for batch in self.train_dataloader:
+                total_data_count += batch[1].size(0)
+            self.num_samples = total_data_count
+            self.test_dataloader = self.dset.loader(
+                is_s2s=self.args.is_s2s,  # sequence to sequence model?
+                batch_size=self.args.batch_size,  # training batch size
+                split="validation",  # training split name in dset
+                subset_size=-1,  # train on subset? (-1 = no subset)
+            )
+            return
         
-        if self.args.dataset.startswith("MMLU"):
+        elif self.args.dataset.startswith("MMLU"):
             self.train_dataloader = self.dset.loader(
                 is_s2s=self.args.is_s2s,  # sequence to sequence model?
                 batch_size=self.args.batch_size,  # training batch size
