@@ -62,6 +62,7 @@ class ClassificationDataset:
         self.tokenizer = tokenizer
         self.numerical = numerical
         self.max_seq_len = max_seq_len
+        self.train_data_indices = None
 
         spc = " " if self.add_space else ""
         """Token ids of class labels. Example [345, 673, 736]."""
@@ -1144,7 +1145,17 @@ Answer:"""
         drop_last: bool = True,
         **kwargs,
     ):
-        dset = self.dset
+        question_ids = self.dset['question_id']
+        p = 70
+        num_samples = int(len(question_ids) * p / 100)
+        if not self.train_data_indices:
+            self.train_data_indices = random.sample(question_ids, num_samples)
+
+        if split == "test":
+            dset = self.dset.filter(lambda x: x['question_id'] in self.train_data_indices)
+        else: 
+            dset = self.dset.filter(lambda x: x['question_id'] not in self.train_data_indices)
+        # dset = self.dset
         kwargs = {"batch_size": 32, "drop_last": drop_last} | kwargs
         assert (
             kwargs["batch_size"] % grad_acc_steps == 0
