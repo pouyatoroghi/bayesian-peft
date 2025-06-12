@@ -87,6 +87,16 @@ class S2SDataset_Classification(DatasetBase):
                 name=args.dataset[5:],
                 max_seq_len=args.max_seq_len,
             )
+
+        elif args.dataset.startswith("BOSS"):
+            dset_class: dsets.ClassificationDataset = getattr(dsets, "boss")
+            self.dset = dset_class(
+                self.tokenizer,
+                add_space=args.add_space,
+                name="",
+                max_seq_len=args.max_seq_len,
+            )
+            
         else:
             dset_class: dsets.ClassificationDataset = getattr(dsets, args.dataset)
             self.dset = dset_class(
@@ -139,6 +149,31 @@ class S2SDataset_Classification(DatasetBase):
                 is_s2s=self.args.is_s2s,  # sequence to sequence model?
                 batch_size=self.args.batch_size,  # training batch size
                 split="test",  # training split name in dset
+                subset_size=-1,  # train on subset? (-1 = no subset)
+            )
+            return
+
+        elif self.args.dataset.startswith("BOSS"):
+            self.train_dataloader = self.dset.loader(
+                is_s2s=self.args.is_s2s,  # sequence to sequence model?
+                batch_size=self.args.batch_size,  # training batch size
+                split="amazon/train.tsv",  # training split name in dset
+                subset_size=-1,  # train on subset? (-1 = no subset)
+            )
+            total_data_count = 0
+            for batch in self.train_dataloader:
+                total_data_count += batch[1].size(0)
+            self.num_samples = total_data_count
+            self.test_dataloader_id = self.dset.loader(
+                is_s2s=self.args.is_s2s,  # sequence to sequence model?
+                batch_size=self.args.batch_size,  # training batch size
+                split="amazon/test.tsv",  # training split name in dset
+                subset_size=-1,  # train on subset? (-1 = no subset)
+            )
+            self.test_dataloader_ood = self.dset.loader(
+                is_s2s=self.args.is_s2s,  # sequence to sequence model?
+                batch_size=self.args.batch_size,  # training batch size
+                split="dynasent/test.tsv",  # training split name in dset
                 subset_size=-1,  # train on subset? (-1 = no subset)
             )
             return
