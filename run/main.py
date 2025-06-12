@@ -108,7 +108,7 @@ def main(args=None):
                 )
         print(file=sys.stderr)
 
-    print(f"Args: {args}")
+    print(f"Args: {args}, {args.load_in_8bit}")
     model = get_model(args, accelerator)
     modelwrapper = get_modelwrapper(args.modelwrapper)
     model.model = modelwrapper(
