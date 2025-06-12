@@ -1169,6 +1169,109 @@ Answer:"""
 
 mmlu_pro = MMLUProDataset
 
+# Change!
+class BOSSDataset(ClassificationDataset):
+    def __init__(
+        self,
+        tokenizer: AutoTokenizer,
+        name: str = "",
+        add_space: bool = True,
+        few_shot: bool = False,
+        max_seq_len: int = 512,
+    ):
+
+        import gdown
+
+        file_id = "1CMt3hTAxt88PuNZKHoAIKB68AcQ38U6f"
+        gdown.download(f"https://drive.google.com/uc?id={file_id}", quiet=False)
+
+        import zipfile
+
+        with zipfile.ZipFile("BOSS.zip", 'r') as zip_ref:
+            zip_ref.extractall()
+        super().__init__(
+            dset,
+            tokenizer,
+            3,
+            prompt,
+            add_space,
+            numerical=False,
+            max_seq_len=max_seq_len,
+        )
+
+        labels = ["negative", "positive", "neutral"]
+        self.target_ids = tokenizer(
+            labels, return_tensors="pt", add_special_tokens=False
+        ).input_ids[
+            :, -1:
+        ]  # assume these encode to single tokens
+        """A mapping from label _indices_ to target token ids. This is only useful for CausalLM models.
+        Example: {(0, 345), (1, 673), (2, 736)}
+        """
+        self.label2target = OrderedDict(
+            [(i, self.target_ids[i]) for i in range(n_labels)]
+        )
+        # misnomer: should be target 2 label _index_
+        self.target2label = OrderedDict(
+            [(self.target_ids[i], i) for i in range(n_labels)]
+        )
+
+    def _format_prompts(self, batch):
+        prompts = []
+        for e in batch:
+            # choices = "\n".join(e["choices"])
+            pprompt = ("### Instruction ###\n"
+                        "Solve the sentiment analysis task. Options for sentiment: negative, positive, neutral.\n"
+                        "### Format ###\n"
+                        "Text: {{Text}} // Prediction: {{Prediction}}\n"
+                        "### Input ###\n"
+                        f"Text: {e['Text']} // Prediction:"
+                       )
+            prompts.append(pprompt)
+        return prompts
+
+    def clm_collate_fn(self, batch):
+        prompts = self._format_prompts(batch)
+        prompts = self._tokenize_prompts(prompts)
+        classes = t.tensor([int(e["Label"]) for e in batch])
+        targets = t.cat([self.label2target[c.item()] for c in classes])
+        return prompts, classes, targets
+
+    def s2s_collate_fn(self, batch):
+        prompts = [e["question"] for e in batch]
+        prompts = self._tokenize_prompts(prompts)
+        targets = t.tensor([int(e["Label"]) for e in batch])
+        return prompts, targets, targets
+
+    def loader(
+        self,
+        *args,
+        is_s2s: bool = False,
+        split: str = "amazon/train.tsv",
+        subset_size: int = -1,
+        subset_seed: int = 42,
+        grad_acc_steps: int = 1,
+        drop_last: bool = True,
+        **kwargs,
+    ):
+        df = pd.read_csv("process/SentimentAnalysis/" + split, sep='\t')
+
+        dset = datasets.Dataset.from_pandas(df)
+        
+        # dset = self.dset
+        kwargs = {"batch_size": 32, "drop_last": drop_last} | kwargs
+        assert (
+            kwargs["batch_size"] % grad_acc_steps == 0
+        ), "batch size must be divisible by gradient accumulation steps"
+        kwargs["batch_size"] = kwargs["batch_size"] // grad_acc_steps
+
+        if is_s2s:
+            return self.s2s_loader(dset, *args, **kwargs)
+        else:
+            return self.clm_loader(dset, *args, **kwargs)
+
+boss = BOSSDataset
+
 class LMDataset:
     """
     An abstract base dataset for autoregressive language modelling problems,
