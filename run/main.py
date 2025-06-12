@@ -108,7 +108,7 @@ def main(args=None):
                 )
         print(file=sys.stderr)
 
-    print(f"Args: {args}")
+    # print(f"Args: {args}")
     # print(args.load_in_8bit)
     
     model = get_model(args, accelerator)
