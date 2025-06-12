@@ -107,7 +107,8 @@ def main(args=None):
                     config=vars(args),
                 )
         print(file=sys.stderr)
-        
+
+    print(f"Args: {args}")
     model = get_model(args, accelerator)
     modelwrapper = get_modelwrapper(args.modelwrapper)
     model.model = modelwrapper(
