@@ -913,7 +913,6 @@ class BLoB(WrapperBase):
         # pbar = tqdm(total=self.args.n_epochs, desc="Training", leave=True, postfix={"Loss": "?", "Accuracy": "?"})
         for epoch in range(self.args.n_epochs):
             print(f"Epoch {epoch}!")
-            self.evaluate(self.test_loader, self.val_loader)
             if self.args.early_stop_steps > 0 and epoch >= self.earlystop_n_epochs:
                 break
             self.args.epoch = epoch
