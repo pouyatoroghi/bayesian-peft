@@ -174,6 +174,7 @@ class WrapperBase(PeftModel):
             train_loader (DataLoader): The training data loader.
             eval_loader (DataLoader): The evaluation data loader.
         """
+        print("FITTing! N what!")
         nll_losses = AverageMeter()
         accs = AverageMeter()
         samples_seen = 0
@@ -246,6 +247,7 @@ class WrapperBase(PeftModel):
             tuple: The evaluation results: accuracy, ECE (Expected Calibration Error), 
                 negative log-likelihood (NLL), and Brier score.
         """
+        print("EVALUATing! N what!")
         self.eval()
         status = self.training
         nlls = AverageMeter()
@@ -321,6 +323,7 @@ class WrapperBase(PeftModel):
         """Performs the fitting and evaluation process, saving the results to checkpoints 
         and logging them to the WandB logger.
         """
+        print("FITTEVALUATing! N what!")
         if self.accelerator.is_local_main_process:
             save_folder = f"checkpoints/{self.args.modelwrapper}/{self.args.model}/{self.args.dataset}/{self.args.log_path}"
             create_if_not_exists(save_folder)
@@ -364,6 +367,7 @@ class WrapperBase(PeftModel):
             dataset (Dataset): The dataset object containing train and test data loaders.
             wandb_logger (optional): The Weights & Biases logger for tracking experiments.
         """
+        print("PREPARing! N what!")
         self.wandb_logger = wandb_logger
         train_loader, test_loader = dataset.train_dataloader, dataset.test_dataloader
         if self.args.testing_set == "train_val":
