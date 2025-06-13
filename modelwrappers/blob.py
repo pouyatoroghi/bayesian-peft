@@ -299,6 +299,7 @@ class BLoB(WrapperBase):
             bayes_gamma=self.args.bayes_gamma,
             bayes_beta=self.args.bayes_beta,
         )
+        self.val_loader = None
         self._modify_lora_layers(self.base_model)
         if args.load_lora_path is not None:
             self.load_adapter(args.load_lora_path, adapter_name)
@@ -443,19 +444,20 @@ class BLoB(WrapperBase):
                     res.append(self.base_model(**batch).logits)
                 return torch.stack(res, dim=1)
 
-    def fit(self, train_loader, eval_loader):
+    def fit(self, train_loader, test_loader, val_loader):
         print("FITTing started!")
         nll_losses = AverageMeter()
         kl_losses = AverageMeter()
         elbo_losses = AverageMeter()
         accs = AverageMeter()
         samples_seen = 0
-        with tqdm(
-            total=len(train_loader),
-            desc=f"Epoch {self.args.epoch+1}/{self.args.n_epochs}",
-            leave=False,
-        ) as pbar:
-            for i, batch in enumerate(train_loader):
+        # with tqdm(
+        #     total=len(train_loader),
+        #     desc=f"Epoch {self.args.epoch+1}/{self.args.n_epochs}",
+        #     leave=False,
+        # ) as pbar:
+        pbar = tqdm(total=len(train_loader), desc=f"Epoch {self.args.epoch+1}/{self.args.n_epochs}", leave=False)
+        for i, batch in enumerate(train_loader):
                 if self.args.dataset_type == "mcdataset":
                     _, golds, _ = batch
                 elif self.args.dataset_type == "bertds":
@@ -544,97 +546,344 @@ class BLoB(WrapperBase):
                 pbar.update(1)
                 if self.step >= self.args.eval_per_steps:
                     self.step -= self.args.eval_per_steps
-                    self.evaluate(eval_loader)
+                    self.evaluate(test_loader, val_loader)
 
-    def evaluate(self, eval_loader):
+    # def evaluate(self, test_loader, val_loader):
+    #     print("EVALUATing started!")
+    #     print("self.eval_n_samples:", self.eval_n_samples)
+    #     self.eval()
+    #     status = self.training
+    #     nlls = AverageMeter()
+    #     metric_kwargs = {"task": "multiclass", "num_classes": self.num_classes}
+    #     acc_metric = Accuracy(**metric_kwargs).to(self.accelerator.device)
+    #     ece_metric = CalibrationError(**metric_kwargs, n_bins=self.args.num_bins).to(
+    #         self.accelerator.device
+    #     )
+    #     briers = AverageMeter()
+
+    #     samples_seen = 0
+    #     for step, batch in enumerate(eval_loader):
+    #         with torch.no_grad() and torch.inference_mode():
+    #             logits = self.forward_logits(
+    #                 batch,
+    #                 sample=not self.args.bayes_inference_notsample,
+    #                 n_samples=self.eval_n_samples,
+    #             ).detach()
+    #             if self.args.dataset_type == "mcdataset":
+    #                 _, labels, _ = batch
+    #             else:
+    #                 labels = batch["labels"]
+    #             logits, labels = self.accelerator.gather([logits, labels])
+    #             if self.accelerator.num_processes > 1:
+    #                 if step == len(eval_loader) - 1:
+    #                     labels = labels[: len(eval_loader.dataset) - samples_seen]
+    #                     logits = logits[: len(eval_loader.dataset) - samples_seen]
+    #                 else:
+    #                     samples_seen += labels.shape[0]
+    #             probs = torch.softmax(logits, dim=-1).mean(dim=1)
+    #             std = torch.softmax(logits, dim=-1).std(dim=1).mean()
+
+    #             # print(f"Probs: {probs}, {probs.shape}")
+    #             # print(f"Labels: {labels}, {labels.shape}")
+    #             # print(metric_kwargs)
+    #             # idx, batch = next(enumerate(eval_loader))
+    #             # inputs, _, _ = batch
+    #             # self.sample(self.base_model, False)
+    #             # output = self.base_model(**inputs)
+    #             # print(f"Logits shape: {output.logits.shape}, {self.target_ids}")
+    #             # # Get predicted token IDs (greedy decoding)
+    #             # predicted_ids = torch.argmax(logits, dim=-1)
+    #             # model_name = "Qwen/Qwen2.5-0.5B-Instruct"  # Replace with your desired Qwen variant
+    #             # ttokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+
+    #             # # Decode to text
+    #             # generated_text = ttokenizer.decode(predicted_ids[0], skip_special_tokens=True)
+    #             # print(f"Text :!{generated_text}!")
+                
+    #             acc_metric(probs, labels)
+    #             ece_metric(probs, labels)
+    #             nll = self.loss(torch.log(probs), labels, reduction="mean")
+    #             if torch.isnan(nll):
+    #                 if self.accelerator.is_local_main_process:
+    #                     print("nll:", nll)
+    #                     print("probs:", probs)
+    #                     print("logits:", logits)
+    #                     exit()
+    #             nlls.update(nll)
+
+    #             brier = (
+    #                 (probs - F.one_hot(labels, num_classes=logits.size(-1)))
+    #                 .pow(2)
+    #                 .sum(dim=-1)
+    #                 .mean()
+    #             )
+    #             briers.update(brier)
+
+    #     val_acc = acc_metric.compute().item()
+    #     val_ece = ece_metric.compute().item()
+    #     val_nll = nlls.avg
+    #     val_brier = briers.avg
+    #     self.train(status)
+
+    #     if self.accelerator.is_local_main_process:
+    #         if self.wandb_logger is not None:
+    #             self.wandb_logger.log(
+    #                 {
+    #                     "val_acc": val_acc,
+    #                     "val_ece": val_ece,
+    #                     "val_nll": val_nll,
+    #                     "std": std,
+    #                     "val_brier": val_brier,
+    #                 }
+    #             )
+    #     return val_acc, val_ece, val_nll, val_brier
+
+    def evaluate(self, test_loader, val_loader):
         print("EVALUATing started!")
         print("self.eval_n_samples:", self.eval_n_samples)
         self.eval()
         status = self.training
-        nlls = AverageMeter()
-        metric_kwargs = {"task": "multiclass", "num_classes": self.num_classes}
-        acc_metric = Accuracy(**metric_kwargs).to(self.accelerator.device)
-        ece_metric = CalibrationError(**metric_kwargs, n_bins=self.args.num_bins).to(
-            self.accelerator.device
-        )
-        briers = AverageMeter()
 
-        samples_seen = 0
-        for step, batch in enumerate(eval_loader):
-            with torch.no_grad() and torch.inference_mode():
-                logits = self.forward_logits(
-                    batch,
-                    sample=not self.args.bayes_inference_notsample,
-                    n_samples=self.eval_n_samples,
-                ).detach()
-                if self.args.dataset_type == "mcdataset":
-                    _, labels, _ = batch
-                else:
-                    labels = batch["labels"]
-                logits, labels = self.accelerator.gather([logits, labels])
-                if self.accelerator.num_processes > 1:
-                    if step == len(eval_loader) - 1:
-                        labels = labels[: len(eval_loader.dataset) - samples_seen]
-                        logits = logits[: len(eval_loader.dataset) - samples_seen]
+        # def _run_eval(eval_loader, name="eval"):
+        #     nlls = AverageMeter()
+        #     briers = AverageMeter()
+        #     metric_kwargs = {"task": "multiclass", "num_classes": self.num_classes}
+        #     acc_metric = Accuracy(**metric_kwargs).to(self.accelerator.device)
+        #     ece_metric = CalibrationError(**metric_kwargs, n_bins=self.args.num_bins).to(self.accelerator.device)
+
+        #     samples_seen = 0
+        #     progress_bar = tqdm(eval_loader, desc=f"Evaluating {name}", leave=False)
+
+        #     for step, batch in enumerate(progress_bar):
+        #         with torch.no_grad() and torch.inference_mode():
+        #             logits = self.forward_logits(
+        #                 batch,
+        #                 sample=not self.args.bayes_inference_notsample,
+        #                 n_samples=self.eval_n_samples,
+        #             ).detach()
+
+        #             if self.args.dataset_type == "mcdataset":
+        #                 _, labels, _ = batch
+        #             else:
+        #                 labels = batch["labels"]
+
+        #             logits, labels = self.accelerator.gather([logits, labels])
+        #             if self.accelerator.num_processes > 1:
+        #                 if step == len(eval_loader) - 1:
+        #                     labels = labels[: len(eval_loader.dataset) - samples_seen]
+        #                     logits = logits[: len(eval_loader.dataset) - samples_seen]
+        #                 else:
+        #                     samples_seen += labels.shape[0]
+
+        #             probs = torch.softmax(logits, dim=-1).mean(dim=1)
+        #             std = torch.softmax(logits, dim=-1).std(dim=1).mean()
+
+        #             acc_metric(probs, labels)
+        #             ece_metric(probs, labels)
+        #             nll = self.loss(torch.log(probs), labels, reduction="mean")
+
+        #             if torch.isnan(nll):
+        #                 if self.accelerator.is_local_main_process:
+        #                     print("NaN NLL detected")
+        #                     print("nll:", nll)
+        #                     print("probs:", probs)
+        #                     print("logits:", logits)
+        #                     exit()
+
+        #             nlls.update(nll)
+
+        #             brier = (
+        #                 (probs - F.one_hot(labels, num_classes=logits.size(-1)))
+        #                 .pow(2)
+        #                 .sum(dim=-1)
+        #                 .mean()
+        #             )
+        #             briers.update(brier)
+
+        #             # Optionally update tqdm postfix
+        #             progress_bar.set_postfix({
+        #                 "acc": acc_metric.compute().item(),
+        #                 "nll": nlls.avg,
+        #                 "brier": briers.avg,
+        #             })
+
+        #     acc = acc_metric.compute().item()
+        #     ece = ece_metric.compute().item()
+        #     nll = nlls.avg
+        #     brier = briers.avg
+
+        #     if self.accelerator.is_local_main_process and self.wandb_logger is not None:
+        #         self.wandb_logger.log({
+        #             f"{name}_acc": acc,
+        #             f"{name}_ece": ece,
+        #             f"{name}_nll": nll,
+        #             f"{name}_brier": brier,
+        #             f"{name}_std": std,
+        #         })
+
+        #     return acc, ece, nll, brier
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        def compute_ece(probs, labels, split, n_bins=10, plot=True):
+            # Ensure inputs are NumPy arrays
+            probs = np.array(probs)
+            labels = np.array(labels)
+
+            # Compute confidences and predictions
+            confidences = probs.max(axis=1)
+            predictions = probs.argmax(axis=1)
+            accuracies = (predictions == labels)
+
+            # Initialize ECE
+            ece = 0.0
+            bin_boundaries = np.linspace(0.0, 1.0, n_bins + 1)
+
+            # For plotting
+            bin_centers = []
+            avg_confs = []
+            avg_accs = []
+            abs_diffs = []
+
+            for i in range(n_bins):
+                bin_lower = bin_boundaries[i]
+                bin_upper = bin_boundaries[i + 1]
+                in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+                prop_in_bin = np.mean(in_bin)
+
+                if prop_in_bin > 0:
+                    acc_in_bin = np.mean(accuracies[in_bin])
+                    avg_conf = np.mean(confidences[in_bin])
+                    ece += np.abs(avg_conf - acc_in_bin) * prop_in_bin
+
+                    # Store for plotting
+                    bin_center = (bin_lower + bin_upper) / 2
+                    bin_centers.append(bin_center)
+                    avg_confs.append(avg_conf)
+                    avg_accs.append(acc_in_bin)
+                    abs_diffs.append(np.abs(avg_conf - acc_in_bin))
+
+            if plot:
+                plt.figure(figsize=(8, 6))
+                plt.plot(bin_centers, avg_confs, label='Confidence', marker='o')
+                plt.plot(bin_centers, avg_accs, label='Accuracy', marker='x')
+                plt.bar(bin_centers, abs_diffs, width=1/n_bins, alpha=0.3, label='|Conf - Acc|')
+                plt.xlabel('Confidence Bin Center')
+                plt.ylabel('Value')
+                plt.title(f'Calibration Plot for {split} Set(ECE = {ece:.4f})')
+                plt.legend()
+                plt.grid(True)
+                plt.tight_layout()
+                plt.show()
+
+            return ece
+
+
+        def _run_eval(eval_loader, name="eval"):
+            nlls = AverageMeter()
+            briers = AverageMeter()
+            metric_kwargs = {"task": "multiclass", "num_classes": self.num_classes}
+            acc_metric = Accuracy(**metric_kwargs).to(self.accelerator.device)
+            ece_metric = CalibrationError(**metric_kwargs, n_bins=self.args.num_bins).to(self.accelerator.device)
+
+            all_probs = []
+            all_preds = []
+            all_labels = []
+
+            samples_seen = 0
+            progress_bar = tqdm(eval_loader, desc=f"Evaluating {name}", leave=False)
+
+            for step, batch in enumerate(progress_bar):
+                with torch.no_grad() and torch.inference_mode():
+                    logits = self.forward_logits(
+                        batch,
+                        sample=not self.args.bayes_inference_notsample,
+                        n_samples=self.eval_n_samples,
+                    ).detach()
+
+                    if self.args.dataset_type == "mcdataset":
+                        _, labels, _ = batch
                     else:
-                        samples_seen += labels.shape[0]
-                probs = torch.softmax(logits, dim=-1).mean(dim=1)
-                std = torch.softmax(logits, dim=-1).std(dim=1).mean()
+                        labels = batch["labels"]
 
-                # print(f"Probs: {probs}, {probs.shape}")
-                # print(f"Labels: {labels}, {labels.shape}")
-                # print(metric_kwargs)
-                # idx, batch = next(enumerate(eval_loader))
-                # inputs, _, _ = batch
-                # self.sample(self.base_model, False)
-                # output = self.base_model(**inputs)
-                # print(f"Logits shape: {output.logits.shape}, {self.target_ids}")
-                # # Get predicted token IDs (greedy decoding)
-                # predicted_ids = torch.argmax(logits, dim=-1)
-                # model_name = "Qwen/Qwen2.5-0.5B-Instruct"  # Replace with your desired Qwen variant
-                # ttokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+                    logits, labels = self.accelerator.gather([logits, labels])
+                    if self.accelerator.num_processes > 1:
+                        if step == len(eval_loader) - 1:
+                            labels = labels[: len(eval_loader.dataset) - samples_seen]
+                            logits = logits[: len(eval_loader.dataset) - samples_seen]
+                        else:
+                            samples_seen += labels.shape[0]
 
-                # # Decode to text
-                # generated_text = ttokenizer.decode(predicted_ids[0], skip_special_tokens=True)
-                # print(f"Text :!{generated_text}!")
-                
-                acc_metric(probs, labels)
-                ece_metric(probs, labels)
-                nll = self.loss(torch.log(probs), labels, reduction="mean")
-                if torch.isnan(nll):
-                    if self.accelerator.is_local_main_process:
-                        print("nll:", nll)
-                        print("probs:", probs)
-                        print("logits:", logits)
-                        exit()
-                nlls.update(nll)
+                    probs = torch.softmax(logits, dim=-1).mean(dim=1)
+                    std = torch.softmax(logits, dim=-1).std(dim=1).mean()
 
-                brier = (
-                    (probs - F.one_hot(labels, num_classes=logits.size(-1)))
-                    .pow(2)
-                    .sum(dim=-1)
-                    .mean()
-                )
-                briers.update(brier)
+                    acc_metric(probs, labels)
+                    ece_metric(probs, labels)
+                    nll = self.loss(torch.log(probs), labels, reduction="mean")
 
-        val_acc = acc_metric.compute().item()
-        val_ece = ece_metric.compute().item()
-        val_nll = nlls.avg
-        val_brier = briers.avg
+                    if torch.isnan(nll):
+                        if self.accelerator.is_local_main_process:
+                            print("NaN NLL detected")
+                            print("nll:", nll)
+                            print("probs:", probs)
+                            print("logits:", logits)
+                            exit()
+
+                    nlls.update(nll)
+
+                    brier = (
+                        (probs - F.one_hot(labels, num_classes=logits.size(-1)))
+                        .pow(2)
+                        .sum(dim=-1)
+                        .mean()
+                    )
+                    briers.update(brier)
+
+                    pred_id = probs.argmax(dim=-1)
+                    true_id = labels
+
+                    all_probs.append(probs.cpu().numpy())
+                    all_preds.append(pred_id.cpu().numpy())
+                    all_labels.append(true_id.cpu().numpy())
+
+                    progress_bar.set_postfix({
+                        "acc": acc_metric.compute().item(),
+                        "nll": nlls.avg,
+                        "brier": briers.avg,
+                    })
+
+            acc = acc_metric.compute().item()
+            ece = ece_metric.compute().item()
+            nll = nlls.avg
+            brier = briers.avg
+
+            if self.accelerator.is_local_main_process and self.wandb_logger is not None:
+                self.wandb_logger.log({
+                    f"{name}_acc": acc,
+                    f"{name}_ece": ece,
+                    f"{name}_nll": nll,
+                    f"{name}_brier": brier,
+                    f"{name}_std": std,
+                })
+
+            all_probs = np.concatenate(all_probs, axis=0)
+            all_preds = np.concatenate(all_preds, axis=0)
+            all_labels = np.concatenate(all_labels, axis=0)
+
+            return (acc, ece, nll, brier), (all_probs, all_preds, all_labels)
+            
+        val_metrics = None
+        if val_loader:
+            val_metrics, all_val_probs = _run_eval(val_loader, name="val")
+            all_probs, all_preds, all_labels = all_val_probs
+            _ = compute_ece(all_probs, all_labels, "Validation(OOD)", n_bins=10, plot=True)
+            
+        test_metrics, all_test_probs = _run_eval(test_loader, name="test")
+        all_probs, all_preds, all_labels = all_test_probs
+        _ = compute_ece(all_probs, all_labels, "Test(ID)", n_bins=10, plot=True)
         self.train(status)
-
-        if self.accelerator.is_local_main_process:
-            if self.wandb_logger is not None:
-                self.wandb_logger.log(
-                    {
-                        "val_acc": val_acc,
-                        "val_ece": val_ece,
-                        "val_nll": val_nll,
-                        "std": std,
-                        "val_brier": val_brier,
-                    }
-                )
-        return val_acc, val_ece, val_nll, val_brier
+        return val_metrics, test_metrics
 
     def fit_evaluate(self):
         """Performs the fitting and evaluation process, saving the results to checkpoints 
@@ -665,7 +914,7 @@ class BLoB(WrapperBase):
             if self.args.early_stop_steps > 0 and epoch >= self.earlystop_n_epochs:
                 break
             self.args.epoch = epoch
-            self.fit(self.train_loader, self.test_loader)
+            self.fit(self.train_loader, self.test_loader, self.val_loader)
 
 
             # # Update progress bar description and metrics
@@ -675,20 +924,39 @@ class BLoB(WrapperBase):
         if hasattr(self.args, "bayes_eval_n_samples_final"):
             self.eval_n_samples = self.args.bayes_eval_n_samples_final
 
-        val_acc, val_ece, val_nll, val_brier = self.evaluate(self.test_loader)
-        logging.info(
-            f"val_acc: {val_acc}, val_ece: {val_ece}, val_nll: {val_nll}, val_brier: {val_brier}"
-        )
+        val_metrics, test_metrics = self.evaluate(self.test_loader, self.val_loader)
+        test_acc, test_ece, test_nll, test_brier = test_metrics
+        if val_metrics:
+            val_acc, val_ece, val_nll, val_brier = val_metrics
+            logging.info(
+            f"val_acc: {val_acc}, val_ece: {val_ece}, val_nll: {val_nll}, val_brier: {val_brier}, test_acc: {test_acc}, test_ece: {test_ece}, test_nll: {test_nll}, test_brier: {test_brier}")
+        else:
+            logging.info(
+            f"test_acc: {test_acc}, test_ece: {test_ece}, test_nll: {test_nll}, test_brier: {test_brier}")
         if self.accelerator.is_local_main_process:
             if self.wandb_logger is not None:
-                self.wandb_logger.log(
-                    {
-                        "final_val_acc": val_acc,
-                        "final_val_ece": val_ece,
-                        "final_val_nll": val_nll,
-                        "final_val_brier": val_brier,
-                    }
-                )
+                if val_metrics:
+                    self.wandb_logger.log(
+                        {
+                            "final_test_acc": test_acc,
+                            "final_test_ece": test_ece,
+                            "final_test_nll": test_nll,
+                            "final_test_brier": test_brier,
+                            "final_val_acc": val_acc,
+                            "final_val_ece": val_ece,
+                            "final_val_nll": val_nll,
+                            "final_val_brier": val_brier,
+                        }
+                    )
+                else:
+                    self.wandb_logger.log(
+                        {
+                            "final_test_acc": test_acc,
+                            "final_test_ece": test_ece,
+                            "final_test_nll": test_nll,
+                            "final_test_brier": test_brier,
+                        }
+                    )
 
     def prepare_for_fit_evaluate(self, dataset, wandb_logger=None):
         """
@@ -702,6 +970,12 @@ class BLoB(WrapperBase):
             val_loader = self.accelerator.prepare(val_loader)
             self.val_loader = val_loader
 
+        if isinstance(dataset, BOSSDataset):
+            print("The dataset is an instance of BOSSDataset")
+            val_loader = dataset.val_dataloader
+            val_loader = self.accelerator.prepare(val_loader)
+            self.val_loader = val_loader
+        
         if self.args.dataset_type == "mcdataset":
             self.target_ids = dataset.target_ids.squeeze(-1)
 
