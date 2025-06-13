@@ -1187,8 +1187,9 @@ class BOSSDataset(ClassificationDataset):
 
         import zipfile
 
-        with zipfile.ZipFile("BOSS.zip", 'r') as zip_ref:
-            zip_ref.extractall()
+        with zipfile.ZipFile("/kaggle/working/bayesian-peft/BOSS.zip", 'r') as zip_ref:
+            zip_ref.extractall("/kaggle/working/")
+
         super().__init__(
             dset,
             tokenizer,
