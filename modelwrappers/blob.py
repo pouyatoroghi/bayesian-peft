@@ -546,6 +546,7 @@ class BLoB(WrapperBase):
 
                 self.step += self.accelerator.num_processes
                 pbar.update(1)
+                break
                 # if self.step >= self.args.eval_per_steps:
                 #     self.step -= self.args.eval_per_steps
                 #     self.evaluate(test_loader, val_loader)
@@ -852,8 +853,7 @@ class BLoB(WrapperBase):
                         "acc": acc_metric.compute().item(),
                         "nll": nlls.avg,
                         "brier": briers.avg,
-                    })
-                break    
+                    })  
             
             acc = acc_metric.compute().item()
             ece = ece_metric.compute().item()
