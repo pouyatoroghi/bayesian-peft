@@ -1190,6 +1190,9 @@ class BOSSDataset(ClassificationDataset):
         with zipfile.ZipFile("/kaggle/working/bayesian-peft/BOSS.zip", 'r') as zip_ref:
             zip_ref.extractall("/kaggle/working/")
 
+        df = pd.read_csv("process/SentimentAnalysis/amazon/train.tsv", sep='\t')
+        self.dset = datasets.Dataset.from_pandas(df)
+
         super().__init__(
             dset,
             tokenizer,
