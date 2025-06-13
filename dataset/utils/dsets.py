@@ -1212,6 +1212,9 @@ class BOSSDataset(ClassificationDataset):
         """A mapping from label _indices_ to target token ids. This is only useful for CausalLM models.
         Example: {(0, 345), (1, 673), (2, 736)}
         """
+
+        n_labels = 3
+        
         self.label2target = OrderedDict(
             [(i, self.target_ids[i]) for i in range(n_labels)]
         )
