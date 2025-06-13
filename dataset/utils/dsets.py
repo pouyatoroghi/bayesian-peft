@@ -1197,7 +1197,7 @@ class BOSSDataset(ClassificationDataset):
             dset,
             tokenizer,
             3,
-            prompt,
+            "",
             add_space,
             numerical=False,
             max_seq_len=max_seq_len,
