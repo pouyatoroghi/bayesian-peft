@@ -794,7 +794,7 @@ class BLoB(WrapperBase):
             all_labels = []
 
             samples_seen = 0
-            progress_bar = tqdm(eval_loader, desc=f"Evaluating {name}", leave=True, position=0)
+            progress_bar = tqdm(eval_loader, desc=f"Evaluating {name}", leave=True, position=1)
 
             for step, batch in enumerate(progress_bar):
                 with torch.no_grad() and torch.inference_mode():
