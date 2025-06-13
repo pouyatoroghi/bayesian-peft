@@ -444,6 +444,7 @@ class BLoB(WrapperBase):
                 return torch.stack(res, dim=1)
 
     def fit(self, train_loader, eval_loader):
+        print("FITTing started!")
         nll_losses = AverageMeter()
         kl_losses = AverageMeter()
         elbo_losses = AverageMeter()
@@ -546,6 +547,7 @@ class BLoB(WrapperBase):
                     self.evaluate(eval_loader)
 
     def evaluate(self, eval_loader):
+        print("EVALUATing started!")
         print("self.eval_n_samples:", self.eval_n_samples)
         self.eval()
         status = self.training
@@ -638,6 +640,7 @@ class BLoB(WrapperBase):
         """
         Prepare the model for training and evaluation.
         """
+        print("PREPARing started!")
         self.wandb_logger = wandb_logger
         train_loader, test_loader = dataset.train_dataloader, dataset.test_dataloader
         if self.args.testing_set == "train_val":
