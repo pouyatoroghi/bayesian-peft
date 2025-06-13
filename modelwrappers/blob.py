@@ -636,6 +636,60 @@ class BLoB(WrapperBase):
                 )
         return val_acc, val_ece, val_nll, val_brier
 
+    def fit_evaluate(self):
+        """Performs the fitting and evaluation process, saving the results to checkpoints 
+        and logging them to the WandB logger.
+        """
+        print("FITTEVALUATing!")
+        if self.accelerator.is_local_main_process:
+            save_folder = f"checkpoints/{self.args.modelwrapper}/{self.args.model}/{self.args.dataset}/{self.args.log_path}"
+            create_if_not_exists(save_folder)
+            logging.basicConfig(
+                format="%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s",
+                level=logging.INFO,
+                filename=save_folder + "/log.txt",
+            )
+        # with tqdm(
+        #     total=self.args.n_epochs, desc=f"Total Training Epochs", leave=True
+        # ) as pbar:
+        #     for epoch in range(self.args.n_epochs):
+        #         if self.args.early_stop_steps > 0 and epoch >= self.earlystop_n_epochs:
+        #             break
+        #         self.args.epoch = epoch
+        #         self.fit(self.train_loader, self.test_loader)
+        #         pbar.update(1)
+
+        # pbar = tqdm(total=self.args.n_epochs, desc="Training", leave=True, postfix={"Loss": "?", "Accuracy": "?"})
+        for epoch in range(self.args.n_epochs):
+            print(f"Epoch {epoch}!")
+            if self.args.early_stop_steps > 0 and epoch >= self.earlystop_n_epochs:
+                break
+            self.args.epoch = epoch
+            self.fit(self.train_loader, self.test_loader)
+
+
+            # # Update progress bar description and metrics
+            # pbar.set_postfix({"Loss": f"{train_loss:.4f}", "Accuracy": f"{train_accuracy:.2%}"})
+            # pbar.update(1)  # Increment epoch counter
+
+        if hasattr(self.args, "bayes_eval_n_samples_final"):
+            self.eval_n_samples = self.args.bayes_eval_n_samples_final
+
+        val_acc, val_ece, val_nll, val_brier = self.evaluate(self.test_loader)
+        logging.info(
+            f"val_acc: {val_acc}, val_ece: {val_ece}, val_nll: {val_nll}, val_brier: {val_brier}"
+        )
+        if self.accelerator.is_local_main_process:
+            if self.wandb_logger is not None:
+                self.wandb_logger.log(
+                    {
+                        "final_val_acc": val_acc,
+                        "final_val_ece": val_ece,
+                        "final_val_nll": val_nll,
+                        "final_val_brier": val_brier,
+                    }
+                )
+
     def prepare_for_fit_evaluate(self, dataset, wandb_logger=None):
         """
         Prepare the model for training and evaluation.
