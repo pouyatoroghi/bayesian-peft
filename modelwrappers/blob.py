@@ -546,9 +546,9 @@ class BLoB(WrapperBase):
 
                 self.step += self.accelerator.num_processes
                 pbar.update(1)
-                if self.step >= self.args.eval_per_steps:
-                    self.step -= self.args.eval_per_steps
-                    self.evaluate(test_loader, val_loader)
+                # if self.step >= self.args.eval_per_steps:
+                #     self.step -= self.args.eval_per_steps
+                #     self.evaluate(test_loader, val_loader)
 
     # def evaluate(self, test_loader, val_loader):
     #     print("EVALUATing started!")
@@ -794,8 +794,7 @@ class BLoB(WrapperBase):
             all_labels = []
 
             samples_seen = 0
-            progress_bar = tqdm(eval_loader, desc=f"Evaluating {name}", leave=True, position=1)
-
+            progress_bar = tqdm(eval_loader, desc=f"Evaluating {name}", leave=True)
             for step, batch in enumerate(progress_bar):
                 with torch.no_grad() and torch.inference_mode():
                     logits = self.forward_logits(
@@ -913,11 +912,12 @@ class BLoB(WrapperBase):
         # pbar = tqdm(total=self.args.n_epochs, desc="Training", leave=True, postfix={"Loss": "?", "Accuracy": "?"})
         for epoch in range(self.args.n_epochs):
             print(f"Epoch {epoch}!")
+            self.evaluate(self.test_loader, self.val_loader)
             if self.args.early_stop_steps > 0 and epoch >= self.earlystop_n_epochs:
                 break
             self.args.epoch = epoch
             self.fit(self.train_loader, self.test_loader, self.val_loader)
-
+            self.evaluate(self.test_loader, self.val_loader)
 
             # # Update progress bar description and metrics
             # pbar.set_postfix({"Loss": f"{train_loss:.4f}", "Accuracy": f"{train_accuracy:.2%}"})
