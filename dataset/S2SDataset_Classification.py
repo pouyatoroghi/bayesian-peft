@@ -50,6 +50,8 @@ class S2SDataset_Classification(DatasetBase):
             self.num_labels = 10
         elif args.dataset.startswith("MMLU"):
             self.num_labels = 4
+        elif args.dataset.startswith("BOSS"):
+            self.num_labels = 3
         else:
             raise NotImplementedError
 
