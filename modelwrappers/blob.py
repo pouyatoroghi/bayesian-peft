@@ -458,7 +458,7 @@ class BLoB(WrapperBase):
         #     desc=f"Epoch {self.args.epoch+1}/{self.args.n_epochs}",
         #     leave=False,
         # ) as pbar:
-        pbar = tqdm(total=len(train_loader), desc=f"Epoch {self.args.epoch+1}/{self.args.n_epochs}", leave=False)
+        pbar = tqdm(total=len(train_loader), desc=f"Epoch {self.args.epoch+1}/{self.args.n_epochs}", leave=True)
         for i, batch in enumerate(train_loader):
                 if self.args.dataset_type == "mcdataset":
                     _, golds, _ = batch
@@ -546,8 +546,8 @@ class BLoB(WrapperBase):
 
                 self.step += self.accelerator.num_processes
                 pbar.update(1)
-                if i == 10:
-                    break
+                # if i == 10:
+                #     break
                 # if self.step >= self.args.eval_per_steps:
                 #     self.step -= self.args.eval_per_steps
                 #     self.evaluate(test_loader, val_loader)
