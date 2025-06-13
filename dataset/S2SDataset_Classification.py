@@ -166,13 +166,13 @@ class S2SDataset_Classification(DatasetBase):
             for batch in self.train_dataloader:
                 total_data_count += batch[1].size(0)
             self.num_samples = total_data_count
-            self.test_dataloader_id = self.dset.loader(
+            self.test_dataloader = self.dset.loader(
                 is_s2s=self.args.is_s2s,  # sequence to sequence model?
                 batch_size=self.args.batch_size,  # training batch size
                 split="amazon/test.tsv",  # training split name in dset
                 subset_size=-1,  # train on subset? (-1 = no subset)
             )
-            self.test_dataloader_ood = self.dset.loader(
+            self.val_dataloader = self.dset.loader(
                 is_s2s=self.args.is_s2s,  # sequence to sequence model?
                 batch_size=self.args.batch_size,  # training batch size
                 split="dynasent/test.tsv",  # training split name in dset
