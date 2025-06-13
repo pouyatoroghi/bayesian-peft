@@ -1191,7 +1191,7 @@ class BOSSDataset(ClassificationDataset):
             zip_ref.extractall("/kaggle/working/")
 
         df = pd.read_csv("/kaggle/working/process/SentimentAnalysis/amazon/train.tsv", sep='\t')
-        self.dset = datasets.Dataset.from_pandas(df)
+        dset = datasets.Dataset.from_pandas(df)
 
         super().__init__(
             dset,
