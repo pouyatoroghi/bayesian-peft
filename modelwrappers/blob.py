@@ -853,7 +853,8 @@ class BLoB(WrapperBase):
                         "nll": nlls.avg,
                         "brier": briers.avg,
                     })
-
+                break    
+            
             acc = acc_metric.compute().item()
             ece = ece_metric.compute().item()
             nll = nlls.avg
