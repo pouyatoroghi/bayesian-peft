@@ -96,7 +96,8 @@ def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
     if getattr(args, 'hf_token', None):
         login(token=args.hf_token)
 
-    try:
+    # try:
+    if True:
         # Download all repository files
         model_dir = snapshot_download(
             repo_id=repo_name,
@@ -144,11 +145,11 @@ def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
         print(f"🎉 Successfully loaded all components from {repo_name}")
         return model
 
-    except Exception as e:
-        print(f"❌ Error loading model: {str(e)}")
-        if "404" in str(e):
-            print("Repository or files not found - check the name and permissions")
-        return model  # Return original model on failure
+    # except Exception as e:
+    #     print(f"❌ Error loading model: {str(e)}")
+    #     if "404" in str(e):
+    #         print("Repository or files not found - check the name and permissions")
+    #     return model  # Return original model on failure
 
 # def upload_model_to_hub(model, repo_name, hf_token):
 #     """
