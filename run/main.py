@@ -74,7 +74,7 @@ def upload_model_to_hub(model, repo_name, hf_token):
             commit_message="Upload BLoB model with LoRA weights"
         )
 
-    print(f"✅ Model uploaded to: https://huggingface.co/Pouyatr/Uncertainty_BLOB")
+    print(f"✅ Model uploaded to: https://huggingface.co/Pouyatr/{repo_name}")
 
 
 def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
