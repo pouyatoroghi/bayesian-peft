@@ -957,6 +957,7 @@ class BLoB(WrapperBase):
         all_probs, all_preds, all_labels = all_test_probs
         _ = compute_ece(all_probs, all_labels, "Test(ID)", n_bins=10, plot=True)
         self.train(status)
+        print(val_metrics, test_metrics)
         return val_metrics, test_metrics
 
     def fit_evaluate(self):
