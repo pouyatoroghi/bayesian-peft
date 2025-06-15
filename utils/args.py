@@ -268,3 +268,10 @@ def add_management_args(parser: ArgumentParser) -> None:
         default="", 
         help="Name of the WandB run. Leave empty for default naming."
     )
+    # Hugging Face arguments
+    parser.add_argument(
+        "--hf-token",
+        type=str,
+        default=None,
+        help="Hugging Face authentication token for model hub access. If not provided, will try to use environment variable HF_TOKEN.",
+    )
