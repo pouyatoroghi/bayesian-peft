@@ -76,21 +76,34 @@ except ImportError:
 
 #     print(f"✅ Model uploaded to: https://huggingface.co/Pouyatr/{repo_name}")
 
-
 def upload_model_to_hub(model, repo_name, hf_token):
     """
     Uploads the model to your existing repo: Pouyatr/Uncertainty_BLOB
     
     Args:
         model: Your trained model (BLoB + LoRA)
+        repo_name: Name of the repository to create/upload to
         hf_token: Your Hugging Face token (or use args.hf_token)
     """
-    from huggingface_hub import HfApi, upload_folder
+    from huggingface_hub import HfApi, upload_folder, create_repo
     import os
     import torch
     from tempfile import TemporaryDirectory
     
     api = HfApi(token=hf_token)
+    repo_id = f"Pouyatr/{repo_name}"
+
+    # Create the repository if it doesn't exist
+    try:
+        create_repo(
+            repo_id=repo_id,
+            token=hf_token,
+            exist_ok=True,  # Won't raise error if repo exists
+            repo_type="model"
+        )
+    except Exception as e:
+        print(f"⚠️ Could not create repository: {e}")
+        raise
 
     # Create a temporary directory
     with TemporaryDirectory() as tmp_dir:
@@ -112,13 +125,13 @@ def upload_model_to_hub(model, repo_name, hf_token):
         # 3. Upload everything
         upload_folder(
             folder_path=tmp_dir,
-            repo_id=f"Pouyatr/{repo_name}",
+            repo_id=repo_id,
             repo_type="model",
             token=hf_token,
             commit_message="Upload BLoB model with LoRA weights"
         )
 
-    print(f"✅ Model uploaded to: https://huggingface.co/Pouyatr/{repo_name}")
+    print(f"✅ Model uploaded to: https://huggingface.co/{repo_id}")
 
 def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
     """
