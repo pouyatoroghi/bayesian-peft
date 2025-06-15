@@ -365,7 +365,7 @@ def main(args=None):
     
     try:
         # Inference mode (load from Hub)
-        hub_repo = f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
+        hub_repo = f"Pouyatr/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
         assert hub_repo is not None, "hub_repo must be provided for inference"
         model = load_from_hub_and_replace_lora(model, hub_repo, args, accelerator)
     except:
