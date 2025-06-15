@@ -63,12 +63,12 @@ def upload_model_to_hub(model, repo_name, hf_token):
                 if 'lora_A_rho' in name
             },
         }
-        torch.save(blob_state, os.path.join(tmp_dir, f'{repo_name}.bin'))
+        torch.save(blob_state, os.path.join(tmp_dir, 'blob_state.bin'))
 
         # 3. Upload everything
         upload_folder(
             folder_path=tmp_dir,
-            repo_id="Pouyatr/Uncertainty_BLOB",
+            repo_id=f"Pouyatr/{repo_name}",
             repo_type="model",
             token=hf_token,
             commit_message="Upload BLoB model with LoRA weights"
