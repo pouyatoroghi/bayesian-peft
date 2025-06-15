@@ -31,40 +31,43 @@ try:
 except ImportError:
     wandb = None
 
-def upload_model_to_hub(model, repo_name):
+def upload_model_to_hub(model, repo_name, hf_token):
     """
     Uploads the wrapped model (BLoB + LoRA) to Hugging Face Hub.
     
     Args:
         model: Your full model (with .model being the BLoB-wrapped model)
-        tokenizer: The associated tokenizer
         repo_name: Name of the repository (e.g., "blob-qwen-7b")
+        hf_token: Your Hugging Face authentication token
     """
     from tempfile import TemporaryDirectory
+    from huggingface_hub import HfApi, Repository
+
+    api = HfApi(token=hf_token)
 
     with TemporaryDirectory() as tmp_dir:
         # Save the base model (inside the wrapper)
-        model.model.base_model.save_pretrained(tmp_dir)  # Now accessing .model.base_model
+        model.model.base_model.save_pretrained(tmp_dir)
 
-        # Save BLoB-specific parameters (e.g., lora_A_rho)
+        # Save BLoB-specific parameters
         blob_state = {
-            'blobconfig': model.model.blobconfig,  # Access via .model
+            'blobconfig': model.model.blobconfig,
             'args': model.model.args,
             'lora_A_rho': {
                 name: param 
-                for name, param in model.model.named_parameters()  # Note: .model here
+                for name, param in model.model.named_parameters()
                 if 'lora_A_rho' in name
             },
         }
         torch.save(blob_state, os.path.join(tmp_dir, 'blob_state.bin'))
 
         # Push to Hub
-        repo_url = HfApi().create_repo(
+        api.create_repo(
             repo_id=repo_name,
             exist_ok=True,
             private=False,
         )
-        repo = Repository(tmp_dir, clone_from=repo_url)
+        repo = Repository(tmp_dir, clone_from=repo_name, token=hf_token)
         repo.push_to_hub(commit_message="Upload BLoB-wrapped Qwen model")
 
     print(f"Model uploaded to: https://huggingface.co/{repo_name}")
@@ -188,7 +191,7 @@ def main(args=None):
         model.model.print_trainable_parameters()
         model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
         model.model.fit_evaluate()
-        upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}")
+        upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", args.hf_token)
     
     # checkpointing the backbone model.
     if args.checkpoint:  # by default the checkpoints folder is checkpoints
