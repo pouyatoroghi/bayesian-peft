@@ -623,7 +623,8 @@ def main(args=None):
     # Inference mode (load from Hub)
     hub_repo = f"Pouyatr/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
     assert hub_repo is not None, "hub_repo must be provided for inference"
-    model = load_from_hub_and_replace_lora(model, hub_repo, args, accelerator)
+    model.model = load_lora_from_hub(model.model, hub_repo, args, accelerator, hf_token=args.hf_token, filename="lora_weights.bin")
+    model.model.evaluate()
     
     # checkpointing the backbone model.
     if args.checkpoint:  # by default the checkpoints folder is checkpoints
