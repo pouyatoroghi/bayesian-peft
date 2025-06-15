@@ -34,6 +34,49 @@ except ImportError:
     wandb = None
 
 
+# def upload_model_to_hub(model, repo_name, hf_token):
+#     """
+#     Uploads the model to your existing repo: Pouyatr/Uncertainty_BLOB
+    
+#     Args:
+#         model: Your trained model (BLoB + LoRA)
+#         hf_token: Your Hugging Face token (or use args.hf_token)
+#     """
+#     from huggingface_hub import HfApi, upload_folder
+#     import os
+#     import torch
+    
+#     api = HfApi(token=hf_token)
+
+#     # Create a temporary directory
+#     with TemporaryDirectory() as tmp_dir:
+#         # 1. Save the base model
+#         model.model.base_model.save_pretrained(tmp_dir)
+        
+#         # 2. Save BLoB-specific files
+#         blob_state = {
+#             'blobconfig': model.model.blobconfig,
+#             'args': model.model.args,
+#             'lora_A_rho': {
+#                 name: param 
+#                 for name, param in model.model.named_parameters()
+#                 if 'lora_A_rho' in name
+#             },
+#         }
+#         torch.save(blob_state, os.path.join(tmp_dir, 'blob_state.bin'))
+
+#         # 3. Upload everything
+#         upload_folder(
+#             folder_path=tmp_dir,
+#             repo_id=f"Pouyatr/{repo_name}",
+#             repo_type="model",
+#             token=hf_token,
+#             commit_message="Upload BLoB model with LoRA weights"
+#         )
+
+#     print(f"✅ Model uploaded to: https://huggingface.co/Pouyatr/{repo_name}")
+
+
 def upload_model_to_hub(model, repo_name, hf_token):
     """
     Uploads the model to your existing repo: Pouyatr/Uncertainty_BLOB
@@ -45,13 +88,14 @@ def upload_model_to_hub(model, repo_name, hf_token):
     from huggingface_hub import HfApi, upload_folder
     import os
     import torch
+    from tempfile import TemporaryDirectory
     
     api = HfApi(token=hf_token)
 
     # Create a temporary directory
     with TemporaryDirectory() as tmp_dir:
-        # 1. Save the base model
-        model.model.base_model.save_pretrained(tmp_dir)
+        # 1. Save the base model and adapter
+        model.model.save_pretrained(tmp_dir)
         
         # 2. Save BLoB-specific files
         blob_state = {
@@ -76,7 +120,6 @@ def upload_model_to_hub(model, repo_name, hf_token):
 
     print(f"✅ Model uploaded to: https://huggingface.co/Pouyatr/{repo_name}")
 
-
 def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
     """
     Downloads and loads all model components from Hugging Face Hub.
@@ -91,13 +134,13 @@ def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
     from peft import PeftModel
     import torch
     import os
+    from peft import LoraConfig
 
     # Authenticate if needed
     if getattr(args, 'hf_token', None):
         login(token=args.hf_token)
 
-    # try:
-    if True:
+    try:
         # Download all repository files
         model_dir = snapshot_download(
             repo_id=repo_name,
@@ -107,28 +150,28 @@ def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
 
         device = accelerator.device if accelerator else 'cuda'
 
-        # 1. Load adapter weights (LoRA)
+        # 1. Load adapter config first
+        if os.path.exists(os.path.join(model_dir, "adapter_config.json")):
+            peft_config = LoraConfig.from_pretrained(model_dir)
+            print("✅ Loaded adapter configuration")
+
+        # 2. Load adapter weights (LoRA)
         if os.path.exists(os.path.join(model_dir, "adapter_model.safetensors")):
             model = PeftModel.from_pretrained(
                 model,
                 model_dir,
+                config=peft_config,
                 device_map={"": device},
                 is_trainable=True
             )
             print("✅ Successfully loaded adapter weights")
 
-        # 2. Load BLoB state with proper safety settings
+        # 3. Load BLoB state
         if os.path.exists(os.path.join(model_dir, "blob_state.bin")):
-            import torch.serialization
-            from modelwrappers.blob import BLoBConfig  # Import your custom config class
-            
-            # Allow your custom BLoBConfig class to be loaded safely
-            with torch.serialization.safe_globals([BLoBConfig]):
-                blob_state = torch.load(
-                    os.path.join(model_dir, "blob_state.bin"),
-                    map_location=device,
-                    weights_only=False  # Required for custom classes
-                )
+            blob_state = torch.load(
+                os.path.join(model_dir, "blob_state.bin"),
+                map_location=device
+            )
             
             # Update model parameters
             model_params = dict(model.model.named_parameters())
@@ -137,13 +180,80 @@ def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
                     model_params[name].data.copy_(param.data)
             print("✅ Successfully loaded BLoB state")
 
-        # 3. Load any additional configs
-        if os.path.exists(os.path.join(model_dir, "adapter_config.json")):
-            # Handle any additional configuration loading here
-            print("✅ Loaded adapter configuration")
-
         print(f"🎉 Successfully loaded all components from {repo_name}")
         return model
+
+    except Exception as e:
+        print(f"❌ Error loading model: {str(e)}")
+        raise
+
+# def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
+#     """
+#     Downloads and loads all model components from Hugging Face Hub.
+    
+#     Args:
+#         model: Target model to modify
+#         repo_name: Repository name (e.g., "Pouyatr/Uncertainty_BLOB")
+#         args: Command line arguments
+#         accelerator: For device placement
+#     """
+#     from huggingface_hub import snapshot_download, login
+#     from peft import PeftModel
+#     import torch
+#     import os
+
+#     # Authenticate if needed
+#     if getattr(args, 'hf_token', None):
+#         login(token=args.hf_token)
+
+#     # try:
+#     if True:
+#         # Download all repository files
+#         model_dir = snapshot_download(
+#             repo_id=repo_name,
+#             allow_patterns=["*.bin", "*.safetensors", "*.json"],
+#             token=getattr(args, 'hf_token', None)
+#         )
+
+#         device = accelerator.device if accelerator else 'cuda'
+
+#         # 1. Load adapter weights (LoRA)
+#         if os.path.exists(os.path.join(model_dir, "adapter_model.safetensors")):
+#             model = PeftModel.from_pretrained(
+#                 model,
+#                 model_dir,
+#                 device_map={"": device},
+#                 is_trainable=True
+#             )
+#             print("✅ Successfully loaded adapter weights")
+
+#         # 2. Load BLoB state with proper safety settings
+#         if os.path.exists(os.path.join(model_dir, "blob_state.bin")):
+#             import torch.serialization
+#             from modelwrappers.blob import BLoBConfig  # Import your custom config class
+            
+#             # Allow your custom BLoBConfig class to be loaded safely
+#             with torch.serialization.safe_globals([BLoBConfig]):
+#                 blob_state = torch.load(
+#                     os.path.join(model_dir, "blob_state.bin"),
+#                     map_location=device,
+#                     weights_only=False  # Required for custom classes
+#                 )
+            
+#             # Update model parameters
+#             model_params = dict(model.model.named_parameters())
+#             for name, param in blob_state['lora_A_rho'].items():
+#                 if name in model_params:
+#                     model_params[name].data.copy_(param.data)
+#             print("✅ Successfully loaded BLoB state")
+
+#         # 3. Load any additional configs
+#         if os.path.exists(os.path.join(model_dir, "adapter_config.json")):
+#             # Handle any additional configuration loading here
+#             print("✅ Loaded adapter configuration")
+
+#         print(f"🎉 Successfully loaded all components from {repo_name}")
+#         return model
 
     # except Exception as e:
     #     print(f"❌ Error loading model: {str(e)}")
@@ -341,17 +451,17 @@ def main(args=None):
     # model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
     # model.model.fit_evaluate()
     
-    # try:
-    #     # Inference mode (load from Hub)
-    #     hub_repo = f"Pouyatr/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
-    #     assert hub_repo is not None, "hub_repo must be provided for inference"
-    #     model = load_from_hub_and_replace_lora(model, hub_repo, args, accelerator)
-    # except:
-    #     # Training mode
-    #     model.model.print_trainable_parameters()
-    #     model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
-    #     model.model.fit_evaluate()
-    #     upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", args.hf_token)
+    try:
+        # Inference mode (load from Hub)
+        hub_repo = f"Pouyatr/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
+        assert hub_repo is not None, "hub_repo must be provided for inference"
+        model = load_from_hub_and_replace_lora(model, hub_repo, args, accelerator)
+    except:
+        # Training mode
+        model.model.print_trainable_parameters()
+        model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
+        model.model.fit_evaluate()
+        upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", args.hf_token)
 
     # Inference mode (load from Hub)
     hub_repo = f"Pouyatr/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
