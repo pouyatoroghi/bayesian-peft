@@ -546,7 +546,7 @@ class BLoB(WrapperBase):
 
                 self.step += self.accelerator.num_processes
                 pbar.update(1)
-                if i == 100:
+                if i == 10:
                     break
                 # if self.step >= self.args.eval_per_steps:
                 #     self.step -= self.args.eval_per_steps
@@ -856,7 +856,7 @@ class BLoB(WrapperBase):
                         "brier": briers.avg,
                     })
 
-                if step == 100:
+                if step == 10:
                     break
             
             acc = acc_metric.compute().item()
@@ -921,7 +921,7 @@ class BLoB(WrapperBase):
                 break
             self.args.epoch = epoch
             self.fit(self.train_loader, self.test_loader, self.val_loader)
-            self.evaluate(self.test_loader, self.val_loader)
+            val_metrics, test_metrics = self.evaluate(self.test_loader, self.val_loader)
 
             # # Update progress bar description and metrics
             # pbar.set_postfix({"Loss": f"{train_loss:.4f}", "Accuracy": f"{train_accuracy:.2%}"})
@@ -930,7 +930,7 @@ class BLoB(WrapperBase):
         if hasattr(self.args, "bayes_eval_n_samples_final"):
             self.eval_n_samples = self.args.bayes_eval_n_samples_final
 
-        val_metrics, test_metrics = self.evaluate(self.test_loader, self.val_loader)
+        # val_metrics, test_metrics = self.evaluate(self.test_loader, self.val_loader)
         test_acc, test_ece, test_nll, test_brier = test_metrics
         if val_metrics:
             val_acc, val_ece, val_nll, val_brier = val_metrics
