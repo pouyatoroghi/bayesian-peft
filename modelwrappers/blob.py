@@ -734,7 +734,7 @@ class BLoB(WrapperBase):
 
         
         def compute_ece(probs, labels, split, n_bins=10, plot=True):
-            save_path = f"/kaggle/working/Plots/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}_{split}.png"
+            save_path = f"/kaggle/working/Plots/{self.args.modelwrapper}_{self.args.model.split('/')[1]}_{self.args.dataset}_{self.args.max_train_steps}_{split}.png"
             # Ensure inputs are NumPy arrays
             probs = np.array(probs)
             labels = np.array(labels)
