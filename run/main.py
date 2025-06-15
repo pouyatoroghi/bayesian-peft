@@ -75,23 +75,61 @@ def upload_model_to_hub(model, repo_name, hf_token):
 def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
     """
     Downloads BLoB weights from Hugging Face Hub and injects them into the model.
+    
+    Args:
+        model: The target model to modify
+        repo_name: Hugging Face repository name (e.g., "username/repo-name")
+        args: Command line arguments containing hf_token if needed
+        accelerator: For device placement
+    
+    Returns:
+        The modified model with updated LoRA weights
     """
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import snapshot_download, login
     
-    # 1. Download model files
-    model_dir = snapshot_download(repo_id=repo_name)
+    # Authenticate if token is provided
+    if getattr(args, 'hf_token', None):
+        login(token=args.hf_token)
+    elif os.getenv('HF_TOKEN'):
+        login(token=os.getenv('HF_TOKEN'))
     
-    # 2. Load BLoB state
-    blob_state = torch.load(os.path.join(model_dir, 'blob_state.bin'), map_location="cuda")
-    
-    # 3. Replace lora_A_rho in the existing model
-    for name, param in blob_state['lora_A_rho'].items():
-        model_param = dict(model.model.named_parameters())[name]
-        model_param.data.copy_(param.data)
-
-    print(f"Model loaded from: https://huggingface.co/{repo_name}")
-    
-    return model
+    try:
+        # Download model files (private repos will need auth)
+        download_kwargs = {
+            'repo_id': repo_name,
+            'allow_patterns': ['blob_state.bin', '*.json'],
+            'local_files_only': False
+        }
+        
+        # Add token if provided
+        if getattr(args, 'hf_token', None):
+            download_kwargs['token'] = args.hf_token
+            
+        model_dir = snapshot_download(**download_kwargs)
+        
+        # Load BLoB state with proper device handling
+        device = accelerator.device if accelerator else 'cuda'
+        blob_path = os.path.join(model_dir, 'blob_state.bin')
+        blob_state = torch.load(blob_path, map_location=device)
+        
+        # Replace lora_A_rho in the existing model
+        model_params = dict(model.model.named_parameters())
+        for name, param in blob_state['lora_A_rho'].items():
+            if name in model_params:
+                model_params[name].data.copy_(param.data)
+            else:
+                print(f"Warning: Parameter {name} not found in model")
+        
+        print(f"Successfully loaded model from: https://huggingface.co/{repo_name}")
+        return model
+        
+    except Exception as e:
+        print(f"Error loading model from Hub: {str(e)}")
+        if "401" in str(e):
+            print("Authentication failed - you may need to provide a valid --hf-token")
+        elif "404" in str(e):
+            print("Repository not found - check the repo_name")
+        raise
 
 def lecun_fix():
     # Yann moved his website to CloudFlare. You need this now
