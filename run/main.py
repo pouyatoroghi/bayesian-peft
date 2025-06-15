@@ -363,17 +363,22 @@ def main(args=None):
     # model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
     # model.model.fit_evaluate()
     
-    try:
-        # Inference mode (load from Hub)
-        hub_repo = f"Pouyatr/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
-        assert hub_repo is not None, "hub_repo must be provided for inference"
-        model = load_from_hub_and_replace_lora(model, hub_repo, args, accelerator)
-    except:
-        # Training mode
-        model.model.print_trainable_parameters()
-        model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
-        model.model.fit_evaluate()
-        upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", args.hf_token)
+    # try:
+    #     # Inference mode (load from Hub)
+    #     hub_repo = f"Pouyatr/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
+    #     assert hub_repo is not None, "hub_repo must be provided for inference"
+    #     model = load_from_hub_and_replace_lora(model, hub_repo, args, accelerator)
+    # except:
+    #     # Training mode
+    #     model.model.print_trainable_parameters()
+    #     model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
+    #     model.model.fit_evaluate()
+    #     upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", args.hf_token)
+
+    # Inference mode (load from Hub)
+    hub_repo = f"Pouyatr/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
+    assert hub_repo is not None, "hub_repo must be provided for inference"
+    model = load_from_hub_and_replace_lora(model, hub_repo, args, accelerator)
     
     # checkpointing the backbone model.
     if args.checkpoint:  # by default the checkpoints folder is checkpoints
