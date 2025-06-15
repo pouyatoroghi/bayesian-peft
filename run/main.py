@@ -76,6 +76,28 @@ except ImportError:
 
 #     print(f"✅ Model uploaded to: https://huggingface.co/Pouyatr/{repo_name}")
 
+def get_model_layers_detailed(model):
+    """
+    Get detailed information about all layers in the model
+    Returns a dictionary with layer names and their details
+    """
+    layers_info = {}
+    
+    for name, module in model.named_modules():
+        # Skip empty modules (like top-level)
+        if not list(module.named_children()):
+            layers_info[name] = {
+                'type': str(type(module)),
+                'parameters': {n: p.shape for n, p in module.named_parameters()},
+                'trainable': any(p.requires_grad for p in module.parameters())
+            }
+    
+    return layers_info
+
+# To save the full state dict (all parameters, not just LoRA):
+def save_full_state_dict(model, path='full_model.pth'):
+    torch.save(model.state_dict(), path)
+
 def upload_model_to_hub(model, repo_name, hf_token):
     """
     Uploads the model to your existing repo: Pouyatr/Uncertainty_BLOB
@@ -478,9 +500,12 @@ def main(args=None):
     model.model = modelwrapper(
         model.model, model.peft_config, args, accelerator, adapter_name="default"
     )
-    print(1, model)              # Shows the outer container
-    print(1, model.model)        # Shows the BLoB-wrapped model
-    print(1, type(model.model))  # Should be your BLoB wrapper class
+    linf = get_model_layers_detailed(model.model)
+    for key, value in linf.items():
+        print(f"{key}: {value}")
+    # print(1, model)              # Shows the outer container
+    # print(1, model.model)        # Shows the BLoB-wrapped model
+    # print(1, type(model.model))  # Should be your BLoB wrapper class
     # model.model.print_trainable_parameters()
     # model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
     # model.model.fit_evaluate()
