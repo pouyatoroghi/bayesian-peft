@@ -34,16 +34,18 @@ except ImportError:
 def upload_model_to_hub(model, repo_name, hf_token):
     """
     Uploads the wrapped model (BLoB + LoRA) to Hugging Face Hub.
-    
-    Args:
-        model: Your full model (with .model being the BLoB-wrapped model)
-        repo_name: Name of the repository (e.g., "blob-qwen-7b")
-        hf_token: Your Hugging Face authentication token
     """
     from tempfile import TemporaryDirectory
     from huggingface_hub import HfApi, Repository
 
     api = HfApi(token=hf_token)
+
+    # Create repo first
+    api.create_repo(
+        repo_id=repo_name,
+        exist_ok=True,
+        private=False,
+    )
 
     with TemporaryDirectory() as tmp_dir:
         # Save the base model (inside the wrapper)
@@ -61,16 +63,16 @@ def upload_model_to_hub(model, repo_name, hf_token):
         }
         torch.save(blob_state, os.path.join(tmp_dir, 'blob_state.bin'))
 
-        # Push to Hub
-        api.create_repo(
-            repo_id=repo_name,
-            exist_ok=True,
-            private=False,
-        )
-        repo = Repository(tmp_dir, clone_from=repo_name, token=hf_token)
-        repo.push_to_hub(commit_message="Upload BLoB-wrapped Qwen model")
+        # Initialize a new repository in the temp dir
+        repo = Repository(tmp_dir, clone_from=repo_name, token=hf_token, skip_lfs_files=True)
+        
+        # Add all files and commit
+        repo.git_add(auto_lfs_track=True)
+        repo.git_commit("Upload BLoB-wrapped Qwen model")
+        repo.git_push()
 
     print(f"Model uploaded to: https://huggingface.co/{repo_name}")
+
 
 def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
     """
