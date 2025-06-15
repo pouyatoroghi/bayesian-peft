@@ -197,7 +197,7 @@ def main(args=None):
     if args.checkpoint:  # by default the checkpoints folder is checkpoints
         accelerator.wait_for_everyone()
         if accelerator.is_main_process:
-            save_folder = f"checkpoints/{args.modelwrapper}/{args.model.split("/")}/{args.dataset}/{args.checkpoint_name}"
+            save_folder = f"checkpoints/{args.modelwrapper}/{args.model}/{args.dataset}/{args.checkpoint_name}"
             create_if_not_exists(save_folder)
             model.model.base_model = accelerator.unwrap_model(model.model.base_model)
             model.model.save_pretrained(save_folder, save_function=accelerator.save)
