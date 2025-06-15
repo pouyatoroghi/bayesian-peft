@@ -80,97 +80,49 @@ def upload_model_to_hub(model, repo_name, hf_token):
 def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
     """
     Downloads BLoB weights from Hugging Face Hub and injects them into the model.
-
+    
     Args:
-        model: The target model to modify. This model should already be initialized
-               with the correct architecture to receive the LoRA weights.
-        repo_name (str): Hugging Face repository name (e.g., "username/repo-name").
-        args: Command line arguments containing hf_token if needed.
-        accelerator: For device placement (e.g., from Hugging Face Accelerate).
-
-    Returns:
-        The modified model with updated LoRA weights.
+        model: Target model to modify
+        repo_name: Repository name (e.g., "Pouyatr/Uncertainty_BLOB")
+        args: Command line arguments containing hf_token if needed
+        accelerator: For device placement
     """
-    print(f"Attempting to load model from Hugging Face Hub: {repo_name}")
-
-    # Authenticate if token is provided
-    # The `login` function sets the token globally for huggingface_hub operations.
-    if getattr(args, 'hf_token', None):
-        print("Logging in with provided HF token.")
-        login(token=args.hf_token)
-    elif os.getenv('HF_TOKEN'):
-        print("Logging in with HF token from environment variable.")
-        login(token=os.getenv('HF_TOKEN'))
-    else:
-        print("No Hugging Face token found. Attempting to download public repository.")
-
+    from huggingface_hub import HfApi
+    import os
+    import torch
+    
+    # Initialize API
+    hf_token = getattr(args, 'hf_token', None)
+    api = HfApi(token=hf_token)
+    
     try:
-        # Download model files
-        # `snapshot_download` fetches the entire repository snapshot.
-        download_kwargs = {
-            'repo_id': repo_name,
-            # 'allow_patterns': ['blob_state.bin', '*.json'], # Consider downloading all if base model files are needed
-            'local_files_only': False, # Always try to download from remote first
-        }
-
-        # Add token if provided. It's good practice to pass it explicitly even if logged in.
-        if getattr(args, 'hf_token', None):
-            download_kwargs['token'] = args.hf_token
-
-        model_dir = snapshot_download(**download_kwargs)
-        print(f"Repository downloaded to: {model_dir}")
-
-        # Load BLoB state with proper device handling
-        # Determine the device for loading the tensor.
-        # If accelerator is available, use its device; otherwise, default to 'cpu' or 'cuda'
-        device = accelerator.device if accelerator and hasattr(accelerator, 'device') else ('cuda' if torch.cuda.is_available() else 'cpu')
-        print(f"Loading BLoB state to device: {device}")
-
-        blob_path = os.path.join(model_dir, 'blob_state.bin')
-        if not os.path.exists(blob_path):
-            raise FileNotFoundError(f"blob_state.bin not found at {blob_path}. "
-                                    "Ensure it was saved correctly during upload.")
-
-        blob_state = torch.load(blob_path, map_location=device)
-        print("BLoB state loaded.")
-
-        # Replace lora_A_rho in the existing model
-        # Iterate through the named parameters of the current model and update the LoRA weights.
+        # Download blob_state.bin
+        local_path = api.hf_hub_download(
+            repo_id=repo_name,
+            filename="blob_state.bin",
+            token=hf_token
+        )
+        
+        # Load state with proper device handling
+        device = accelerator.device if accelerator else 'cuda'
+        blob_state = torch.load(local_path, map_location=device)
+        
+        # Update model parameters
         model_params = dict(model.model.named_parameters())
-        updated_params_count = 0
-        for name, param_from_blob in blob_state['lora_A_rho'].items():
+        for name, param in blob_state['lora_A_rho'].items():
             if name in model_params:
-                # Ensure dimensions match before copying
-                if model_params[name].data.shape == param_from_blob.data.shape:
-                    model_params[name].data.copy_(param_from_blob.data)
-                    updated_params_count += 1
-                else:
-                    print(f"Warning: Shape mismatch for parameter {name}. "
-                          f"Model shape: {model_params[name].data.shape}, "
-                          f"Loaded shape: {param_from_blob.data.shape}. Skipping update.")
+                model_params[name].data.copy_(param.data)
             else:
-                print(f"Warning: Parameter {name} not found in current model. Skipping.")
-
-        if updated_params_count > 0:
-            print(f"Successfully updated {updated_params_count} 'lora_A_rho' parameters.")
-        else:
-            print("No 'lora_A_rho' parameters were updated. Check parameter names and structure.")
-
-        print(f"Model successfully loaded and LoRA weights replaced from: https://huggingface.co/{repo_name}")
+                print(f"Parameter {name} not found in model - skipping")
+        
+        print(f"✅ Successfully loaded weights from {repo_name}")
         return model
-
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        raise # Re-raise to stop execution if essential file is missing
+        
     except Exception as e:
-        print(f"Error loading model from Hub: {str(e)}")
-        if "401" in str(e):
-            print("Authentication failed - you may need to provide a valid --hf-token or ensure it has access to private repos.")
-        elif "404" in str(e):
-            print("Repository not found - check the repo_name. It must exactly match the name used for upload.")
-        elif "Cannot load `model.safetensors`" in str(e) or "missing keys" in str(e):
-             print("Model architecture mismatch or corrupt file. Ensure the base model for loading matches the uploaded one.")
-        raise # Re-raise the exception after providing more context
+        print(f"❌ Error loading model: {str(e)}")
+        if "404" in str(e):
+            print("Repository or file not found - check the name and permissions")
+        return model  # Return original model on failure
 
 
 # def upload_model_to_hub(model, repo_name, hf_token):
