@@ -79,51 +79,76 @@ def upload_model_to_hub(model, repo_name, hf_token):
 
 def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
     """
-    Downloads BLoB weights from Hugging Face Hub and injects them into the model.
+    Downloads and loads all model components from Hugging Face Hub.
     
     Args:
         model: Target model to modify
         repo_name: Repository name (e.g., "Pouyatr/Uncertainty_BLOB")
-        args: Command line arguments containing hf_token if needed
+        args: Command line arguments
         accelerator: For device placement
     """
-    from huggingface_hub import HfApi
-    import os
+    from huggingface_hub import snapshot_download, login
+    from peft import PeftModel
     import torch
-    
-    # Initialize API
-    hf_token = getattr(args, 'hf_token', None)
-    api = HfApi(token=hf_token)
-    
+    import os
+
+    # Authenticate if needed
+    if getattr(args, 'hf_token', None):
+        login(token=args.hf_token)
+
     try:
-        # Download blob_state.bin
-        local_path = api.hf_hub_download(
+        # Download all repository files
+        model_dir = snapshot_download(
             repo_id=repo_name,
-            filename="blob_state.bin",
-            token=hf_token
+            allow_patterns=["*.bin", "*.safetensors", "*.json"],
+            token=getattr(args, 'hf_token', None)
         )
-        
-        # Load state with proper device handling
+
         device = accelerator.device if accelerator else 'cuda'
-        blob_state = torch.load(local_path, map_location=device)
-        
-        # Update model parameters
-        model_params = dict(model.model.named_parameters())
-        for name, param in blob_state['lora_A_rho'].items():
-            if name in model_params:
-                model_params[name].data.copy_(param.data)
-            else:
-                print(f"Parameter {name} not found in model - skipping")
-        
-        print(f"✅ Successfully loaded weights from {repo_name}")
+
+        # 1. Load adapter weights (LoRA)
+        if os.path.exists(os.path.join(model_dir, "adapter_model.safetensors")):
+            model = PeftModel.from_pretrained(
+                model,
+                model_dir,
+                device_map={"": device},
+                is_trainable=True
+            )
+            print("✅ Successfully loaded adapter weights")
+
+        # 2. Load BLoB state with proper safety settings
+        if os.path.exists(os.path.join(model_dir, "blob_state.bin")):
+            import torch.serialization
+            from modelwrappers.blob import BLoBConfig  # Import your custom config class
+            
+            # Allow your custom BLoBConfig class to be loaded safely
+            with torch.serialization.safe_globals([BLoBConfig]):
+                blob_state = torch.load(
+                    os.path.join(model_dir, "blob_state.bin"),
+                    map_location=device,
+                    weights_only=False  # Required for custom classes
+                )
+            
+            # Update model parameters
+            model_params = dict(model.model.named_parameters())
+            for name, param in blob_state['lora_A_rho'].items():
+                if name in model_params:
+                    model_params[name].data.copy_(param.data)
+            print("✅ Successfully loaded BLoB state")
+
+        # 3. Load any additional configs
+        if os.path.exists(os.path.join(model_dir, "adapter_config.json")):
+            # Handle any additional configuration loading here
+            print("✅ Loaded adapter configuration")
+
+        print(f"🎉 Successfully loaded all components from {repo_name}")
         return model
-        
+
     except Exception as e:
         print(f"❌ Error loading model: {str(e)}")
         if "404" in str(e):
-            print("Repository or file not found - check the name and permissions")
+            print("Repository or files not found - check the name and permissions")
         return model  # Return original model on failure
-
 
 # def upload_model_to_hub(model, repo_name, hf_token):
 #     """
