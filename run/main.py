@@ -31,6 +31,67 @@ try:
 except ImportError:
     wandb = None
 
+def upload_model_to_hub(model, tokenizer, repo_name):
+    """
+    Uploads the wrapped model (BLoB + LoRA) to Hugging Face Hub.
+    
+    Args:
+        model: Your full model (with .model being the BLoB-wrapped model)
+        tokenizer: The associated tokenizer
+        repo_name: Name of the repository (e.g., "blob-qwen-7b")
+    """
+    from tempfile import TemporaryDirectory
+
+    with TemporaryDirectory() as tmp_dir:
+        # Save the base model (inside the wrapper)
+        model.model.base_model.save_pretrained(tmp_dir)  # Now accessing .model.base_model
+        
+        if tokenizer is not None:
+            tokenizer.save_pretrained(tmp_dir)
+
+        # Save BLoB-specific parameters (e.g., lora_A_rho)
+        blob_state = {
+            'blobconfig': model.model.blobconfig,  # Access via .model
+            'args': model.model.args,
+            'lora_A_rho': {
+                name: param 
+                for name, param in model.model.named_parameters()  # Note: .model here
+                if 'lora_A_rho' in name
+            },
+        }
+        torch.save(blob_state, os.path.join(tmp_dir, 'blob_state.bin'))
+
+        # Push to Hub
+        repo_url = HfApi().create_repo(
+            repo_id=repo_name,
+            exist_ok=True,
+            private=False,
+        )
+        repo = Repository(tmp_dir, clone_from=repo_url)
+        repo.push_to_hub(commit_message="Upload BLoB-wrapped Qwen model")
+
+    print(f"Model uploaded to: https://huggingface.co/{repo_name}")
+
+def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
+    """
+    Downloads BLoB weights from Hugging Face Hub and injects them into the model.
+    """
+    from huggingface_hub import snapshot_download
+    
+    # 1. Download model files
+    model_dir = snapshot_download(repo_id=repo_name)
+    
+    # 2. Load BLoB state
+    blob_state = torch.load(os.path.join(model_dir, 'blob_state.bin'), map_location="cuda")
+    
+    # 3. Replace lora_A_rho in the existing model
+    for name, param in blob_state['lora_A_rho'].items():
+        model_param = dict(model.model.named_parameters())[name]
+        model_param.data.copy_(param.data)
+
+    print(f"Model loaded from: https://huggingface.co/{repo_name}")
+    
+    return model
 
 def lecun_fix():
     # Yann moved his website to CloudFlare. You need this now
@@ -116,10 +177,22 @@ def main(args=None):
     model.model = modelwrapper(
         model.model, model.peft_config, args, accelerator, adapter_name="default"
     )
-    model.model.print_trainable_parameters()
-    model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
-    model.model.fit_evaluate()
-
+    # model.model.print_trainable_parameters()
+    # model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
+    # model.model.fit_evaluate()
+    
+    try:
+        # Inference mode (load from Hub)
+        hub_repo = f"{args.modelwrapper}_{args.model}_{args.dataset}_{args.max_train_steps}"
+        assert hub_repo is not None, "hub_repo must be provided for inference"
+        model = load_from_hub_and_replace_lora(model, hub_repo, args, accelerator)
+    except:
+        # Training mode
+        model.model.print_trainable_parameters()
+        model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
+        model.model.fit_evaluate()
+        upload_model_to_hub(model, tokenizer, f"{args.modelwrapper}_{args.model}_{args.dataset}_{args.max_train_steps}")
+    
     # checkpointing the backbone model.
     if args.checkpoint:  # by default the checkpoints folder is checkpoints
         accelerator.wait_for_everyone()
