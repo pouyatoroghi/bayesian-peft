@@ -604,7 +604,7 @@ def main(args=None):
     # print(1, type(model.model))  # Should be your BLoB wrapper class
     model.model.print_trainable_parameters()
     model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
-    # model.model.fit_evaluate()
+    model.model.fit_evaluate()
     
     try:
         # Inference mode (load from Hub)
