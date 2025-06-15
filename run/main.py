@@ -45,9 +45,6 @@ def upload_model_to_hub(model, repo_name):
     with TemporaryDirectory() as tmp_dir:
         # Save the base model (inside the wrapper)
         model.model.base_model.save_pretrained(tmp_dir)  # Now accessing .model.base_model
-        
-        if tokenizer is not None:
-            tokenizer.save_pretrained(tmp_dir)
 
         # Save BLoB-specific parameters (e.g., lora_A_rho)
         blob_state = {
