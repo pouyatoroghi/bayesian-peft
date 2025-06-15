@@ -188,7 +188,7 @@ def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
         
         # 2. Load adapter weights (LoRA)
         if os.path.exists(os.path.join(model_dir, "adapter_model.safetensors")):
-            model = PeftModel.from_pretrained(
+            model.model = PeftModel.from_pretrained(
                 model.model,
                 model_dir,
                 config=peft_config,
