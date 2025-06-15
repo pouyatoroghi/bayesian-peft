@@ -854,7 +854,10 @@ class BLoB(WrapperBase):
                         "acc": acc_metric.compute().item(),
                         "nll": nlls.avg,
                         "brier": briers.avg,
-                    })  
+                    })
+
+                if step == 100:
+                    break
             
             acc = acc_metric.compute().item()
             ece = ece_metric.compute().item()
