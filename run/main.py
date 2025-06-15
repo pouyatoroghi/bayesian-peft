@@ -204,9 +204,13 @@ def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
             target_modules=target_modules
         )
 
-        print(model)              # Shows the outer container
-        print(model.model)        # Shows the BLoB-wrapped model
-        print(type(model.model))  # Should be your BLoB wrapper class
+        # print(model)              # Shows the outer container
+        # print(model.model)        # Shows the BLoB-wrapped model
+        # print(type(model.model))  # Should be your BLoB wrapper class
+
+        linf = get_model_layers_detailed(model.model)
+        for key, value in linf.items():
+            print(f"\033[31m{key}: {value}\033[0m")
         
         # 2. Load adapter weights (LoRA)
         if os.path.exists(os.path.join(model_dir, "adapter_model.safetensors")):
