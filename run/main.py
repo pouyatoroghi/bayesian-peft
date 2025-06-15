@@ -154,6 +154,20 @@ def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
         if os.path.exists(os.path.join(model_dir, "adapter_config.json")):
             peft_config = LoraConfig.from_pretrained(model_dir)
             print("✅ Loaded adapter configuration")
+            print(peft_config)
+
+        from peft import (get_peft_model, LoraConfig, PeftModel, PeftConfig)
+
+        target_modules = ["lm_head", "v_proj", "q_proj"]
+        
+        peft_config = LoraConfig(
+            task_type="CAUSAL_LM",
+            inference_mode=True,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            target_modules=target_modules
+        )
 
         # 2. Load adapter weights (LoRA)
         if os.path.exists(os.path.join(model_dir, "adapter_model.safetensors")):
