@@ -683,7 +683,7 @@ def main(args=None):
         # upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", args.hf_token)
         upload_lora_to_hub(model.model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", hf_token=args.hf_token, filename="lora_weights.bin")
 
-        are_models_identical_torch(model.model, model1.model)
+    are_models_identical_torch(model.model, model1.model)
     # # Inference mode (load from Hub)
     # hub_repo = f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
     # assert hub_repo is not None, "hub_repo must be provided for inference"
