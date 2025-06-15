@@ -32,77 +32,47 @@ except ImportError:
     wandb = None
 
 
-import os
-import torch
-from tempfile import TemporaryDirectory
-from huggingface_hub import HfApi, Repository, snapshot_download, login
-
 def upload_model_to_hub(model, repo_name, hf_token):
     """
-    Uploads the wrapped model (BLoB + LoRA) to Hugging Face Hub.
-
+    Uploads the model to your existing repo: Pouyatr/Uncertainty_BLOB
+    
     Args:
-        model: The model wrapper containing the base model and BLoB/LoRA parameters.
-        repo_name (str): The name of the Hugging Face repository (e.g., "username/repo-name").
-        hf_token (str): Your Hugging Face authentication token.
+        model: Your trained model (BLoB + LoRA)
+        hf_token: Your Hugging Face token (or use args.hf_token)
     """
+    from huggingface_hub import HfApi, upload_folder
+    import os
+    import torch
+    
     api = HfApi(token=hf_token)
 
-    # 1. Create the repository on Hugging Face Hub
-    # This ensures the repo exists before we try to upload to it.
-    print(f"Creating or ensuring repository exists: {repo_name}")
-    api.create_repo(
-        repo_id=repo_name,
-        exist_ok=True,  # Set to True to avoid error if repo already exists
-        private=False,  # Adjust as needed (True for private repos)
-        token=hf_token, # Pass token explicitly
-    )
-    print(f"Repository {repo_name} is ready on Hugging Face Hub.")
-
+    # Create a temporary directory
     with TemporaryDirectory() as tmp_dir:
-        print(f"Saving model components to temporary directory: {tmp_dir}")
-
-        # 2. Save the base model (inside the wrapper)
-        # Assuming 'model.model.base_model' is a PreTrainedModel or similar
-        # that has a save_pretrained method.
-        try:
-            model.model.base_model.save_pretrained(tmp_dir)
-            print("Base model saved.")
-        except AttributeError:
-            print("Warning: model.model.base_model does not have save_pretrained. "
-                  "Ensure your base model is saved correctly if it's not handled by the wrapper.")
-            # If the base model is not saved this way, you might need to manually save it
-            # or ensure it's part of the `blob_state.bin` if it's small enough.
-
-        # 3. Save BLoB-specific parameters
-        # This includes blobconfig, args, and lora_A_rho parameters.
+        # 1. Save the base model
+        model.model.base_model.save_pretrained(tmp_dir)
+        
+        # 2. Save BLoB-specific files
         blob_state = {
-            'blobconfig': getattr(model.model, 'blobconfig', None), # Use getattr for safety
-            'args': getattr(model.model, 'args', None),             # Use getattr for safety
+            'blobconfig': model.model.blobconfig,
+            'args': model.model.args,
             'lora_A_rho': {
-                name: param.cpu().half() # Move to CPU and convert to half precision to save space
+                name: param 
                 for name, param in model.model.named_parameters()
                 if 'lora_A_rho' in name
             },
         }
-        blob_state_path = os.path.join(tmp_dir, 'blob_state.bin')
-        torch.save(blob_state, blob_state_path)
-        print(f"BLoB state saved to {blob_state_path}.")
+        torch.save(blob_state, os.path.join(tmp_dir, f'{repo_name}.bin'))
 
-        # 4. Upload the entire temporary directory to the Hugging Face Hub repository
-        # This handles Git initialization, adding files, committing, and pushing.
-        print(f"Uploading files from {tmp_dir} to {repo_name}...")
-        api.upload_folder(
+        # 3. Upload everything
+        upload_folder(
             folder_path=tmp_dir,
-            repo_id=repo_name,
-            repo_type="model",  # Specify repository type if needed (e.g., "dataset", "space")
-            token=hf_token,     # Pass token explicitly
-            commit_message="Upload BLoB-wrapped Qwen model",
-            create_pr=False,    # Set to True if you want a Pull Request instead of direct commit
+            repo_id="Pouyatr/Uncertainty_BLOB",
+            repo_type="model",
+            token=hf_token,
+            commit_message="Upload BLoB model with LoRA weights"
         )
-        print("Upload complete!")
 
-    print(f"Model successfully uploaded to: https://huggingface.co/{repo_name}")
+    print(f"✅ Model uploaded to: https://huggingface.co/Pouyatr/Uncertainty_BLOB")
 
 
 def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
