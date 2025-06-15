@@ -602,8 +602,8 @@ def main(args=None):
     # print(1, model)              # Shows the outer container
     # print(1, model.model)        # Shows the BLoB-wrapped model
     # print(1, type(model.model))  # Should be your BLoB wrapper class
-    # model.model.print_trainable_parameters()
-    # model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
+    model.model.print_trainable_parameters()
+    model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
     # model.model.fit_evaluate()
     
     try:
@@ -614,8 +614,8 @@ def main(args=None):
         model.model = load_lora_from_hub(model.model, hub_repo, args, accelerator, hf_token=args.hf_token, filename="lora_weights.bin")
     except:
         # Training mode
-        model.model.print_trainable_parameters()
-        model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
+        # model.model.print_trainable_parameters()
+        # model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
         model.model.fit_evaluate()
         # upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", args.hf_token)
         upload_lora_to_hub(model.model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", hf_token=args.hf_token, filename="lora_weights.bin")
@@ -624,7 +624,7 @@ def main(args=None):
     hub_repo = f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
     assert hub_repo is not None, "hub_repo must be provided for inference"
     model.model = load_lora_from_hub(model.model, hub_repo, args, accelerator, hf_token=args.hf_token, filename="lora_weights.bin")
-    model.model.evaluate()
+    model.model.evaluate(model.model.test_loader, model.model.val_loader)
     
     # checkpointing the backbone model.
     if args.checkpoint:  # by default the checkpoints folder is checkpoints
