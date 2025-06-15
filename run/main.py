@@ -182,6 +182,10 @@ def load_from_hub_and_replace_lora(model, repo_name, args, accelerator):
             target_modules=target_modules
         )
 
+        print(model)              # Shows the outer container
+        print(model.model)        # Shows the BLoB-wrapped model
+        print(type(model.model))  # Should be your BLoB wrapper class
+        
         # 2. Load adapter weights (LoRA)
         if os.path.exists(os.path.join(model_dir, "adapter_model.safetensors")):
             model = PeftModel.from_pretrained(
@@ -474,6 +478,9 @@ def main(args=None):
     model.model = modelwrapper(
         model.model, model.peft_config, args, accelerator, adapter_name="default"
     )
+    print(1, model)              # Shows the outer container
+    print(1, model.model)        # Shows the BLoB-wrapped model
+    print(1, type(model.model))  # Should be your BLoB wrapper class
     # model.model.print_trainable_parameters()
     # model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
     # model.model.fit_evaluate()
