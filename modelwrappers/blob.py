@@ -546,8 +546,8 @@ class BLoB(WrapperBase):
 
                 self.step += self.accelerator.num_processes
                 pbar.update(1)
-                if i == 10:
-                    break
+                # if i == 10:
+                #     break
                 # if self.step >= self.args.eval_per_steps:
                 #     self.step -= self.args.eval_per_steps
                 #     self.evaluate(test_loader, val_loader)
@@ -648,91 +648,10 @@ class BLoB(WrapperBase):
         self.eval()
         status = self.training
 
-        # def _run_eval(eval_loader, name="eval"):
-        #     nlls = AverageMeter()
-        #     briers = AverageMeter()
-        #     metric_kwargs = {"task": "multiclass", "num_classes": self.num_classes}
-        #     acc_metric = Accuracy(**metric_kwargs).to(self.accelerator.device)
-        #     ece_metric = CalibrationError(**metric_kwargs, n_bins=self.args.num_bins).to(self.accelerator.device)
-
-        #     samples_seen = 0
-        #     progress_bar = tqdm(eval_loader, desc=f"Evaluating {name}", leave=False)
-
-        #     for step, batch in enumerate(progress_bar):
-        #         with torch.no_grad() and torch.inference_mode():
-        #             logits = self.forward_logits(
-        #                 batch,
-        #                 sample=not self.args.bayes_inference_notsample,
-        #                 n_samples=self.eval_n_samples,
-        #             ).detach()
-
-        #             if self.args.dataset_type == "mcdataset":
-        #                 _, labels, _ = batch
-        #             else:
-        #                 labels = batch["labels"]
-
-        #             logits, labels = self.accelerator.gather([logits, labels])
-        #             if self.accelerator.num_processes > 1:
-        #                 if step == len(eval_loader) - 1:
-        #                     labels = labels[: len(eval_loader.dataset) - samples_seen]
-        #                     logits = logits[: len(eval_loader.dataset) - samples_seen]
-        #                 else:
-        #                     samples_seen += labels.shape[0]
-
-        #             probs = torch.softmax(logits, dim=-1).mean(dim=1)
-        #             std = torch.softmax(logits, dim=-1).std(dim=1).mean()
-
-        #             acc_metric(probs, labels)
-        #             ece_metric(probs, labels)
-        #             nll = self.loss(torch.log(probs), labels, reduction="mean")
-
-        #             if torch.isnan(nll):
-        #                 if self.accelerator.is_local_main_process:
-        #                     print("NaN NLL detected")
-        #                     print("nll:", nll)
-        #                     print("probs:", probs)
-        #                     print("logits:", logits)
-        #                     exit()
-
-        #             nlls.update(nll)
-
-        #             brier = (
-        #                 (probs - F.one_hot(labels, num_classes=logits.size(-1)))
-        #                 .pow(2)
-        #                 .sum(dim=-1)
-        #                 .mean()
-        #             )
-        #             briers.update(brier)
-
-        #             # Optionally update tqdm postfix
-        #             progress_bar.set_postfix({
-        #                 "acc": acc_metric.compute().item(),
-        #                 "nll": nlls.avg,
-        #                 "brier": briers.avg,
-        #             })
-
-        #     acc = acc_metric.compute().item()
-        #     ece = ece_metric.compute().item()
-        #     nll = nlls.avg
-        #     brier = briers.avg
-
-        #     if self.accelerator.is_local_main_process and self.wandb_logger is not None:
-        #         self.wandb_logger.log({
-        #             f"{name}_acc": acc,
-        #             f"{name}_ece": ece,
-        #             f"{name}_nll": nll,
-        #             f"{name}_brier": brier,
-        #             f"{name}_std": std,
-        #         })
-
-        #     return acc, ece, nll, brier
-
-
         import numpy as np
         import matplotlib.pyplot as plt
         import os
 
-        
         def compute_ece(probs, labels, split, n_bins=10, plot=True):
             save_path = f"/kaggle/working/Plots/{self.args.modelwrapper}_{self.args.model.split('/')[1]}_{self.args.dataset}_{self.args.max_train_steps}_{split}.png"
             # Ensure inputs are NumPy arrays
@@ -794,64 +713,6 @@ class BLoB(WrapperBase):
 
             return ece
         
-
-        # import numpy as np
-        # import matplotlib.pyplot as plt
-
-        # def compute_ece(probs, labels, split, n_bins=10, plot=True):
-        #     # Ensure inputs are NumPy arrays
-        #     probs = np.array(probs)
-        #     labels = np.array(labels)
-
-        #     # Compute confidences and predictions
-        #     confidences = probs.max(axis=1)
-        #     predictions = probs.argmax(axis=1)
-        #     accuracies = (predictions == labels)
-
-        #     # Initialize ECE
-        #     ece = 0.0
-        #     bin_boundaries = np.linspace(0.0, 1.0, n_bins + 1)
-
-        #     # For plotting
-        #     bin_centers = []
-        #     avg_confs = []
-        #     avg_accs = []
-        #     abs_diffs = []
-
-        #     for i in range(n_bins):
-        #         bin_lower = bin_boundaries[i]
-        #         bin_upper = bin_boundaries[i + 1]
-        #         in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
-        #         prop_in_bin = np.mean(in_bin)
-
-        #         if prop_in_bin > 0:
-        #             acc_in_bin = np.mean(accuracies[in_bin])
-        #             avg_conf = np.mean(confidences[in_bin])
-        #             ece += np.abs(avg_conf - acc_in_bin) * prop_in_bin
-
-        #             # Store for plotting
-        #             bin_center = (bin_lower + bin_upper) / 2
-        #             bin_centers.append(bin_center)
-        #             avg_confs.append(avg_conf)
-        #             avg_accs.append(acc_in_bin)
-        #             abs_diffs.append(np.abs(avg_conf - acc_in_bin))
-
-        #     if plot:
-        #         plt.figure(figsize=(8, 6))
-        #         plt.plot(bin_centers, avg_confs, label='Confidence', marker='o')
-        #         plt.plot(bin_centers, avg_accs, label='Accuracy', marker='x')
-        #         plt.bar(bin_centers, abs_diffs, width=1/n_bins, alpha=0.3, label='|Conf - Acc|')
-        #         plt.xlabel('Confidence Bin Center')
-        #         plt.ylabel('Value')
-        #         plt.title(f'Calibration Plot for {split} Set(ECE = {ece:.4f})')
-        #         plt.legend()
-        #         plt.grid(True)
-        #         plt.tight_layout()
-        #         plt.show()
-
-        #     return ece
-
-
         def _run_eval(eval_loader, name="eval"):
             nlls = AverageMeter()
             briers = AverageMeter()
@@ -924,8 +785,8 @@ class BLoB(WrapperBase):
                         "brier": briers.avg,
                     })
 
-                if step == 10:
-                    break
+                # if step == 10:
+                #     break
             
             acc = acc_metric.compute().item()
             ece = ece_metric.compute().item()
@@ -973,17 +834,7 @@ class BLoB(WrapperBase):
                 level=logging.INFO,
                 filename=save_folder + "/log.txt",
             )
-        # with tqdm(
-        #     total=self.args.n_epochs, desc=f"Total Training Epochs", leave=True
-        # ) as pbar:
-        #     for epoch in range(self.args.n_epochs):
-        #         if self.args.early_stop_steps > 0 and epoch >= self.earlystop_n_epochs:
-        #             break
-        #         self.args.epoch = epoch
-        #         self.fit(self.train_loader, self.test_loader)
-        #         pbar.update(1)
 
-        # pbar = tqdm(total=self.args.n_epochs, desc="Training", leave=True, postfix={"Loss": "?", "Accuracy": "?"})
         for epoch in range(self.args.n_epochs):
             print(f"Epoch {epoch}!")
             if self.args.early_stop_steps > 0 and epoch >= self.earlystop_n_epochs:
@@ -991,10 +842,6 @@ class BLoB(WrapperBase):
             self.args.epoch = epoch
             self.fit(self.train_loader, self.test_loader, self.val_loader)
             val_metrics, test_metrics = self.evaluate(self.test_loader, self.val_loader)
-
-            # # Update progress bar description and metrics
-            # pbar.set_postfix({"Loss": f"{train_loss:.4f}", "Accuracy": f"{train_accuracy:.2%}"})
-            # pbar.update(1)  # Increment epoch counter
 
         if hasattr(self.args, "bayes_eval_n_samples_final"):
             self.eval_n_samples = self.args.bayes_eval_n_samples_final
