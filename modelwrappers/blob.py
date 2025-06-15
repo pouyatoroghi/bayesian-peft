@@ -727,10 +727,14 @@ class BLoB(WrapperBase):
 
         #     return acc, ece, nll, brier
 
+
         import numpy as np
         import matplotlib.pyplot as plt
+        import os
 
+        
         def compute_ece(probs, labels, split, n_bins=10, plot=True):
+            save_path = f"/kaggle/working/Plots/{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}_{split}.png"
             # Ensure inputs are NumPy arrays
             probs = np.array(probs)
             labels = np.array(labels)
@@ -775,13 +779,77 @@ class BLoB(WrapperBase):
                 plt.bar(bin_centers, abs_diffs, width=1/n_bins, alpha=0.3, label='|Conf - Acc|')
                 plt.xlabel('Confidence Bin Center')
                 plt.ylabel('Value')
-                plt.title(f'Calibration Plot for {split} Set(ECE = {ece:.4f})')
+                plt.title(f'Calibration Plot for {split} Set (ECE = {ece:.4f})')
                 plt.legend()
                 plt.grid(True)
                 plt.tight_layout()
+        
+                # Save the figure if save_path is provided
+                if save_path:
+                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                    plt.savefig(save_path)
+                    print(f"Plot saved to: {save_path}")
+            
                 plt.show()
 
             return ece
+        
+
+        # import numpy as np
+        # import matplotlib.pyplot as plt
+
+        # def compute_ece(probs, labels, split, n_bins=10, plot=True):
+        #     # Ensure inputs are NumPy arrays
+        #     probs = np.array(probs)
+        #     labels = np.array(labels)
+
+        #     # Compute confidences and predictions
+        #     confidences = probs.max(axis=1)
+        #     predictions = probs.argmax(axis=1)
+        #     accuracies = (predictions == labels)
+
+        #     # Initialize ECE
+        #     ece = 0.0
+        #     bin_boundaries = np.linspace(0.0, 1.0, n_bins + 1)
+
+        #     # For plotting
+        #     bin_centers = []
+        #     avg_confs = []
+        #     avg_accs = []
+        #     abs_diffs = []
+
+        #     for i in range(n_bins):
+        #         bin_lower = bin_boundaries[i]
+        #         bin_upper = bin_boundaries[i + 1]
+        #         in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+        #         prop_in_bin = np.mean(in_bin)
+
+        #         if prop_in_bin > 0:
+        #             acc_in_bin = np.mean(accuracies[in_bin])
+        #             avg_conf = np.mean(confidences[in_bin])
+        #             ece += np.abs(avg_conf - acc_in_bin) * prop_in_bin
+
+        #             # Store for plotting
+        #             bin_center = (bin_lower + bin_upper) / 2
+        #             bin_centers.append(bin_center)
+        #             avg_confs.append(avg_conf)
+        #             avg_accs.append(acc_in_bin)
+        #             abs_diffs.append(np.abs(avg_conf - acc_in_bin))
+
+        #     if plot:
+        #         plt.figure(figsize=(8, 6))
+        #         plt.plot(bin_centers, avg_confs, label='Confidence', marker='o')
+        #         plt.plot(bin_centers, avg_accs, label='Accuracy', marker='x')
+        #         plt.bar(bin_centers, abs_diffs, width=1/n_bins, alpha=0.3, label='|Conf - Acc|')
+        #         plt.xlabel('Confidence Bin Center')
+        #         plt.ylabel('Value')
+        #         plt.title(f'Calibration Plot for {split} Set(ECE = {ece:.4f})')
+        #         plt.legend()
+        #         plt.grid(True)
+        #         plt.tight_layout()
+        #         plt.show()
+
+        #     return ece
 
 
         def _run_eval(eval_loader, name="eval"):
