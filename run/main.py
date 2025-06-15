@@ -33,6 +33,53 @@ try:
 except ImportError:
     wandb = None
 
+import torch
+import numpy as np
+
+def are_models_identical_torch(model1, model2):
+    """
+    Check if two PyTorch models are absolutely identical in every aspect.
+    
+    Args:
+        model1 (torch.nn.Module): First model to compare
+        model2 (torch.nn.Module): Second model to compare
+    
+    Returns:
+        bool: True if models are identical, False otherwise
+    """
+    # Check if models are the same class
+    if model1.__class__ != model2.__class__:
+        return False
+    
+    # Check model architecture by comparing state_dict keys
+    if model1.state_dict().keys() != model2.state_dict().keys():
+        return False
+    
+    # Check all parameters are exactly equal
+    for (name1, param1), (name2, param2) in zip(model1.named_parameters(), model2.named_parameters()):
+        if name1 != name2:
+            return False
+        if not torch.equal(param1, param2):
+            return False
+    
+    # Check buffers (like running mean/variance in BatchNorm)
+    for (name1, buf1), (name2, buf2) in zip(model1.named_buffers(), model2.named_buffers()):
+        if name1 != name2:
+            return False
+        if not torch.equal(buf1, buf2):
+            return False
+    
+    # Check training mode
+    if model1.training != model2.training:
+        return False
+    
+    return True
+
+# Example usage:
+# model1 = YourModelClass()
+# model2 = YourModelClass()
+# print(are_models_identical_torch(model1, model2))
+
 
 # def upload_model_to_hub(model, repo_name, hf_token):
 #     """
@@ -611,7 +658,23 @@ def main(args=None):
         hub_repo = f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
         assert hub_repo is not None, "hub_repo must be provided for inference"
         # model = load_from_hub_and_replace_lora(model, hub_repo, args, accelerator)
-        model.model = load_lora_from_hub(model.model, hub_repo, args, accelerator, hf_token=args.hf_token, filename="lora_weights.bin")
+        model1 = get_model(args, accelerator)
+        modelwrapper = get_modelwrapper(args.modelwrapper)
+        model1.model = modelwrapper(
+            model1.model, model1.peft_config, args, accelerator, adapter_name="default"
+        )
+    # linf = get_model_layers_detailed(model.model)
+    # for key, value in linf.items():
+    #     print(f"{key}: {value}")
+    
+    
+    # print(1, model)              # Shows the outer container
+    # print(1, model.model)        # Shows the BLoB-wrapped model
+    # print(1, type(model.model))  # Should be your BLoB wrapper class
+        model1.model.print_trainable_parameters()
+        model1.model.prepare_for_fit_evaluate(dataset, wandb_logger)
+        model1.model = load_lora_from_hub(model1.model, hub_repo, args, accelerator, hf_token=args.hf_token, filename="lora_weights.bin")
+        model1.model.evaluate(model1.model.test_loader, model1.model.val_loader)
     except:
         # Training mode
         # model.model.print_trainable_parameters()
@@ -619,12 +682,13 @@ def main(args=None):
         model.model.fit_evaluate()
         # upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", args.hf_token)
         upload_lora_to_hub(model.model, f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}", hf_token=args.hf_token, filename="lora_weights.bin")
-    
-    # Inference mode (load from Hub)
-    hub_repo = f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
-    assert hub_repo is not None, "hub_repo must be provided for inference"
-    model.model = load_lora_from_hub(model.model, hub_repo, args, accelerator, hf_token=args.hf_token, filename="lora_weights.bin")
-    model.model.evaluate(model.model.test_loader, model.model.val_loader)
+
+        are_models_identical_torch(model.model, model1.model)
+    # # Inference mode (load from Hub)
+    # hub_repo = f"{args.modelwrapper}_{args.model.split('/')[1]}_{args.dataset}_{args.max_train_steps}"
+    # assert hub_repo is not None, "hub_repo must be provided for inference"
+    # model.model = load_lora_from_hub(model.model, hub_repo, args, accelerator, hf_token=args.hf_token, filename="lora_weights.bin")
+    # model.model.evaluate(model.model.test_loader, model.model.val_loader)
     
     # checkpointing the backbone model.
     if args.checkpoint:  # by default the checkpoints folder is checkpoints
