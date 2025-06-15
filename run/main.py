@@ -31,7 +31,7 @@ try:
 except ImportError:
     wandb = None
 
-def upload_model_to_hub(model, tokenizer, repo_name):
+def upload_model_to_hub(model, repo_name):
     """
     Uploads the wrapped model (BLoB + LoRA) to Hugging Face Hub.
     
@@ -191,7 +191,7 @@ def main(args=None):
         model.model.print_trainable_parameters()
         model.model.prepare_for_fit_evaluate(dataset, wandb_logger)
         model.model.fit_evaluate()
-        upload_model_to_hub(model, tokenizer, f"{args.modelwrapper}_{args.model.split("/")}_{args.dataset}_{args.max_train_steps}")
+        upload_model_to_hub(model, f"{args.modelwrapper}_{args.model.split("/")}_{args.dataset}_{args.max_train_steps}")
     
     # checkpointing the backbone model.
     if args.checkpoint:  # by default the checkpoints folder is checkpoints
